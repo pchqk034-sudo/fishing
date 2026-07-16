@@ -1,0 +1,483 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>相模湾・東京湾 釣果ダッシュボード</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:#f9f9f7; --surface-1:#fcfcfb;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,.10);
+    --series-1:#2a78d6; --series-2:#008300; --series-1-soft:rgba(42,120,214,.10);
+    --accent:#2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page:#0d0d0d; --surface-1:#1a1a19;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,.10);
+      --series-1:#3987e5; --series-2:#008300; --series-1-soft:rgba(57,135,229,.12);
+      --accent:#3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:#0d0d0d; --surface-1:#1a1a19;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,.10);
+    --series-1:#3987e5; --series-2:#008300; --series-1-soft:rgba(57,135,229,.12);
+    --accent:#3987e5;
+  }
+  * { box-sizing:border-box; margin:0; }
+  body {
+    background:var(--page); color:var(--text-primary);
+    font-family:system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    font-size:14px; line-height:1.55; padding:20px clamp(12px,3vw,36px) 60px;
+  }
+  header h1 { font-size:22px; font-weight:700; letter-spacing:.01em; }
+  header p  { color:var(--text-secondary); margin-top:2px; font-size:13px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:18px 0; }
+  .kpi { background:var(--surface-1); border:1px solid var(--border); border-radius:10px; padding:12px 16px; }
+  .kpi .label { color:var(--text-secondary); font-size:12px; }
+  .kpi .value { font-size:28px; font-weight:600; margin-top:2px; }
+  .kpi .sub { color:var(--muted); font-size:11px; }
+  .filters {
+    display:flex; flex-wrap:wrap; gap:10px; align-items:end;
+    background:var(--surface-1); border:1px solid var(--border); border-radius:10px;
+    padding:12px 16px; margin-bottom:18px; position:sticky; top:0; z-index:5;
+  }
+  .filters label { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--text-secondary); }
+  .filters select {
+    font:inherit; font-size:13px; color:var(--text-primary);
+    background:var(--page); border:1px solid var(--border); border-radius:7px; padding:5px 8px; min-width:110px;
+  }
+  .filters button {
+    font:inherit; font-size:12px; padding:6px 12px; border-radius:7px; cursor:pointer;
+    border:1px solid var(--border); background:var(--page); color:var(--text-secondary);
+  }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:14px; }
+  .card { background:var(--surface-1); border:1px solid var(--border); border-radius:10px; padding:16px 18px; min-width:0; }
+  .card.wide { grid-column:1/-1; }
+  .card h2 { font-size:14px; font-weight:600; }
+  .card .desc { color:var(--muted); font-size:11.5px; margin-bottom:10px; }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--text-secondary); margin:6px 0 4px; }
+  .legend span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  .legend .k1::before { background:var(--series-1); } .legend .k2::before { background:var(--series-2); }
+  svg { display:block; width:100%; height:auto; }
+  svg text { font-family:inherit; }
+  .axis-t { fill:var(--muted); font-size:10.5px; font-variant-numeric:tabular-nums; }
+  .lbl-t  { fill:var(--text-secondary); font-size:11.5px; }
+  .val-t  { fill:var(--text-primary); font-size:11px; font-variant-numeric:tabular-nums; }
+  .bar { cursor:pointer; }
+  .bar:hover { opacity:.82; }
+  details.tbl { margin-top:8px; font-size:12px; }
+  details.tbl summary { color:var(--muted); cursor:pointer; font-size:11.5px; }
+  details.tbl table { border-collapse:collapse; margin-top:6px; width:100%; }
+  details.tbl th, details.tbl td { text-align:left; padding:3px 10px 3px 0; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; }
+  details.tbl th { color:var(--text-secondary); font-weight:500; }
+  #tooltip {
+    position:fixed; pointer-events:none; z-index:20; display:none; max-width:260px;
+    background:var(--surface-1); color:var(--text-primary); border:1px solid var(--border);
+    border-radius:8px; padding:7px 10px; font-size:12px; box-shadow:0 4px 14px rgba(0,0,0,.18);
+  }
+  #tooltip .tt-title { font-weight:600; margin-bottom:2px; }
+  #tooltip .tt-row { color:var(--text-secondary); }
+  section.block { margin-top:26px; }
+  section.block > h2 { font-size:16px; margin-bottom:10px; }
+  table.boats { width:100%; border-collapse:collapse; font-size:13px; background:var(--surface-1); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  table.boats th, table.boats td { padding:8px 10px; text-align:left; border-bottom:1px solid var(--grid); }
+  table.boats th { color:var(--text-secondary); font-weight:600; font-size:12px; background:var(--surface-1); }
+  table.boats td.num { font-variant-numeric:tabular-nums; text-align:right; }
+  .table-wrap { overflow-x:auto; border-radius:10px; }
+  .chip { display:inline-block; font-size:11px; color:var(--text-secondary); border:1px solid var(--border); border-radius:20px; padding:1px 8px; margin:1px 2px 1px 0; }
+  .btn-resv {
+    font:inherit; font-size:12px; font-weight:600; padding:5px 14px; border-radius:7px; cursor:pointer;
+    border:none; background:var(--accent); color:#fff; white-space:nowrap;
+  }
+  .btn-resv:hover { filter:brightness(1.08); }
+  .note { color:var(--muted); font-size:11.5px; margin-top:6px; }
+  footer { margin-top:34px; color:var(--muted); font-size:11.5px; border-top:1px solid var(--grid); padding-top:12px; }
+  footer a { color:var(--text-secondary); }
+</style>
+
+<header>
+  <h1>相模湾・東京湾 釣果ダッシュボード</h1>
+  <p>静岡・神奈川・東京・千葉の遊漁船 <span id="boat-count"></span>隻の釣果を、魚種・船宿・エリア・時期・天候・風向・潮回り・アクセス数で分析</p>
+</header>
+
+<div class="kpis" id="kpis"></div>
+
+<div class="filters" id="filters">
+  <label>期間
+    <select id="f-period">
+      <option value="all">全期間（1年）</option>
+      <option value="30">直近30日</option>
+      <option value="90">直近90日</option>
+      <option value="180">直近半年</option>
+    </select>
+  </label>
+  <label>湾・エリア
+    <select id="f-bay"><option value="">すべて</option><option>相模湾</option><option>東京湾</option></select>
+  </label>
+  <label>都県
+    <select id="f-pref"><option value="">すべて</option><option>静岡県</option><option>神奈川県</option><option>東京都</option><option>千葉県</option></select>
+  </label>
+  <label>港
+    <select id="f-port"><option value="">すべて</option></select>
+  </label>
+  <label>魚種
+    <select id="f-species"><option value="">すべて</option></select>
+  </label>
+  <label>船宿
+    <select id="f-boat"><option value="">すべて</option></select>
+  </label>
+  <button id="f-reset">リセット</button>
+</div>
+
+<div class="grid">
+  <div class="card wide">
+    <h2>月別釣果推移</h2>
+    <div class="desc">月ごとの総釣果（尾・杯）。時期による釣り物の移り変わりを湾別に表示</div>
+    <div class="legend"><span class="k1">相模湾</span><span class="k2">東京湾</span></div>
+    <div id="ch-monthly"></div>
+  </div>
+  <div class="card">
+    <h2>魚種別釣果ランキング</h2>
+    <div class="desc">期間内の総釣果 上位12魚種（クリックで絞り込み）</div>
+    <div id="ch-species"></div>
+  </div>
+  <div class="card">
+    <h2>船宿別釣果ランキング</h2>
+    <div class="desc">期間内の総釣果 上位12船宿（クリックで絞り込み）</div>
+    <div id="ch-boats"></div>
+  </div>
+  <div class="card">
+    <h2>港・エリア別釣果</h2>
+    <div class="desc">出船港ごとの総釣果（クリックで絞り込み）</div>
+    <div id="ch-ports"></div>
+  </div>
+  <div class="card">
+    <h2>アクセス数ランキング</h2>
+    <div class="desc">船宿ページの期間内アクセス数 上位10（サンプル値＋この画面での予約クリック）</div>
+    <div id="ch-access"></div>
+  </div>
+</div>
+
+<section class="block">
+  <h2>コンディション分析 — 天候・風向・潮回りと釣果の関係</h2>
+  <div class="grid">
+    <div class="card">
+      <h2>天候別 平均釣果／人</h2>
+      <div class="desc">出船日の天候ごとの一人あたり平均釣果</div>
+      <div id="ch-weather"></div>
+    </div>
+    <div class="card">
+      <h2>風向別 平均釣果／人</h2>
+      <div class="desc">卓越風向ごとの一人あたり平均釣果</div>
+      <div id="ch-wind"></div>
+    </div>
+    <div class="card">
+      <h2>潮回り別 平均釣果／人</h2>
+      <div class="desc">月齢から算出した潮回りごとの一人あたり平均釣果</div>
+      <div id="ch-tide"></div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <h2>船宿一覧・予約</h2>
+  <div class="table-wrap">
+    <table class="boats">
+      <thead><tr>
+        <th>船宿</th><th>港</th><th>湾</th><th>都県</th><th>主な釣り物</th>
+        <th style="text-align:right">期間内釣果</th><th style="text-align:right">アクセス</th><th></th>
+      </tr></thead>
+      <tbody id="boat-rows"></tbody>
+    </table>
+  </div>
+  <p class="note">予約ボタン: 公式サイトが登録済みの船宿は公式予約ページへ、未登録の船宿は検索結果へ移動します。乗合・仕立の空き状況は各船宿に直接ご確認ください。</p>
+</section>
+
+<div id="tooltip"></div>
+
+<footer>
+  <p id="gen-at"></p>
+  <p>釣果・アクセス数は現在<strong>デモ用サンプルデータ</strong>です（釣期・天候・潮回りを反映した生成モデル）。実データは収集パイプライン（scripts/collect_catches.py）接続後に置き換わります。潮回りは月齢からの簡易計算です。</p>
+</footer>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  const D = window.FISHING_DATA;
+  if (!D) { document.body.insertAdjacentHTML("beforeend", "<p>data.js が見つかりません。scripts/aggregate.py を実行してください。</p>"); return; }
+
+  // trips row: [dateIdx, boatIdx, speciesIdx, total, anglers, weatherIdx, windIdx, tideIdx, top]
+  const T = { d:0, b:1, s:2, total:3, ang:4, wx:5, wd:6, td:7, top:8 };
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => n >= 10000 ? (n/1000).toFixed(1).replace(/\.0$/,"") + "K" : n.toLocaleString("ja-JP");
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+  // ---- 予約クリック（ローカル計測）----
+  const LS_KEY = "fishing_resv_clicks";
+  const clicks = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+  window.reserve = function (bi) {
+    const b = D.boats[bi];
+    clicks[b.id] = (clicks[b.id] || 0) + 1;
+    localStorage.setItem(LS_KEY, JSON.stringify(clicks));
+    const url = b.website || ("https://www.google.com/search?q=" + encodeURIComponent(b.name + " " + b.port + " 釣船 予約"));
+    window.open(url, "_blank", "noopener");
+    render();
+  };
+
+  // ---- フィルタ ----
+  const F = { period:"all", bay:"", pref:"", port:"", species:"", boat:"" };
+  const maxDate = D.dates[D.dates.length - 1];
+
+  function fillSelect(id, values) {
+    const sel = $(id), cur = sel.value;
+    sel.length = 1;
+    values.forEach(v => sel.add(new Option(v.label ?? v, v.value ?? v)));
+    sel.value = cur;
+    if (sel.selectedIndex < 0) sel.selectedIndex = 0;
+  }
+  fillSelect("f-species", D.species);
+  fillSelect("f-port", [...new Set(D.boats.map(b => b.port))]);
+  function refreshBoatSelect() {
+    const list = D.boats.map((b,i) => ({b,i}))
+      .filter(x => (!F.bay || x.b.bay===F.bay) && (!F.pref || x.b.pref===F.pref) && (!F.port || x.b.port===F.port))
+      .map(x => ({ label:x.b.name + "（" + x.b.port + "）", value:x.i }));
+    fillSelect("f-boat", list);
+  }
+  refreshBoatSelect();
+
+  ["period","bay","pref","port","species","boat"].forEach(k => {
+    $("f-"+k).addEventListener("change", e => { F[k] = e.target.value; if (k!=="boat") { refreshBoatSelect(); F.boat = $("f-boat").value; } render(); });
+  });
+  $("f-reset").addEventListener("click", () => {
+    Object.keys(F).forEach(k => F[k] = k==="period" ? "all" : "");
+    ["period","bay","pref","port","species","boat"].forEach(k => $("f-"+k).selectedIndex = 0);
+    refreshBoatSelect(); render();
+  });
+
+  function cutoffDate() {
+    if (F.period === "all") return "";
+    const d = new Date(maxDate); d.setDate(d.getDate() - (+F.period));
+    return d.toISOString().slice(0, 10);
+  }
+
+  function filteredTrips() {
+    const cut = cutoffDate();
+    const si = F.species === "" ? -1 : D.species.indexOf(F.species);
+    const bi = F.boat === "" ? -1 : +F.boat;
+    return D.trips.filter(t => {
+      if (cut && D.dates[t[T.d]] < cut) return false;
+      if (si >= 0 && t[T.s] !== si) return false;
+      const b = D.boats[t[T.b]];
+      if (bi >= 0 && t[T.b] !== bi) return false;
+      if (F.bay && b.bay !== F.bay) return false;
+      if (F.pref && b.pref !== F.pref) return false;
+      if (F.port && b.port !== F.port) return false;
+      return true;
+    });
+  }
+
+  // ---- ツールチップ ----
+  const tip = $("tooltip");
+  function showTip(ev, html) {
+    tip.innerHTML = html; tip.style.display = "block";
+    const x = Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 10);
+    const y = Math.min(ev.clientY + 14, innerHeight - tip.offsetHeight - 10);
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  }
+  function hideTip() { tip.style.display = "none"; }
+
+  // ---- チャート描画ヘルパ ----
+  const NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function roundedRight(x, y, w, h, r) { // 横棒: 右端のみ4px丸め、基線側は角
+    r = Math.min(r, w, h / 2);
+    return `M${x},${y} h${w - r} a${r},${r} 0 0 1 ${r},${r} v${h - 2*r} a${r},${r} 0 0 1 -${r},${r} h-${w - r} z`;
+  }
+  function roundedTop(x, y, w, h, r) { // 縦棒: 上端のみ丸め
+    r = Math.min(r, h, w / 2);
+    return `M${x},${y + h} v-${h - r} a${r},${r} 0 0 1 ${r},-${r} h${w - 2*r} a${r},${r} 0 0 1 ${r},${r} v${h - r} z`;
+  }
+  function dataTable(headers, rows) {
+    const d = document.createElement("details"); d.className = "tbl";
+    d.innerHTML = "<summary>データ表</summary>";
+    const tb = document.createElement("table");
+    tb.innerHTML = "<tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr>" +
+      rows.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
+    d.appendChild(tb);
+    return d;
+  }
+
+  // 横棒グラフ（単系列・値ラベルは棒の先端）
+  function hbars(containerId, rows, opts = {}) {
+    const c = $(containerId); c.innerHTML = "";
+    if (!rows.length) { c.innerHTML = "<p class='note'>該当データがありません</p>"; return; }
+    const labelW = opts.labelW || 110, valueW = 52, rowH = 27, barH = 18;
+    const W = 460, plotW = W - labelW - valueW, H = rows.length * rowH + 6;
+    const max = Math.max(...rows.map(r => r.value), 1e-9);
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+    rows.forEach((r, i) => {
+      const y = i * rowH + 4;
+      const w = Math.max(2, r.value / max * plotW);
+      const lbl = el("text", { x: labelW - 8, y: y + barH/2 + 4, "text-anchor": "end", class: "lbl-t" },
+        r.label.length > 9 ? r.label.slice(0, 9) + "…" : r.label);
+      svg.appendChild(lbl);
+      const bar = el("path", { d: roundedRight(labelW, y, w, barH, 4), fill: css("--series-1"), class: "bar" });
+      bar.addEventListener("mousemove", ev => showTip(ev,
+        `<div class="tt-title">${r.label}</div><div class="tt-row">${opts.tipLabel || "釣果"}: ${r.tip ?? fmt(r.value)}</div>`));
+      bar.addEventListener("mouseleave", hideTip);
+      if (opts.onClick) bar.addEventListener("click", () => opts.onClick(r));
+      svg.appendChild(bar);
+      svg.appendChild(el("text", { x: labelW + w + 6, y: y + barH/2 + 4, class: "val-t" }, r.display ?? fmt(r.value)));
+    });
+    c.appendChild(svg);
+    c.appendChild(dataTable([opts.dim || "項目", opts.tipLabel || "釣果"], rows.map(r => [r.label, r.display ?? fmt(r.value)])));
+  }
+
+  // 積み上げ縦棒（月別 × 湾）
+  function stackedColumns(containerId, cats, series) {
+    const c = $(containerId); c.innerHTML = "";
+    const W = 940, H = 240, padL = 46, padR = 10, padT = 12, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const totals = cats.map((_, i) => series.reduce((a, s) => a + s.values[i], 0));
+    const max = Math.max(...totals, 1);
+    const step = niceStep(max / 3);
+    const top = Math.ceil(max / step) * step;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+    for (let v = 0; v <= top; v += step) {
+      const y = padT + plotH - v / top * plotH;
+      svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: y, y2: y, stroke: v === 0 ? css("--baseline") : css("--grid"), "stroke-width": 1 }));
+      svg.appendChild(el("text", { x: padL - 6, y: y + 3.5, "text-anchor": "end", class: "axis-t" }, fmt(v)));
+    }
+    const bandW = plotW / cats.length;
+    const colW = Math.min(24, bandW * 0.55);
+    cats.forEach((cat, i) => {
+      const x = padL + i * bandW + (bandW - colW) / 2;
+      let yCursor = padT + plotH;
+      const parts = series.map(s => ({ name: s.name, v: s.values[i], color: s.color }));
+      parts.forEach((p, pi) => {
+        if (p.v <= 0) return;
+        let h = p.v / top * plotH;
+        const isTop = parts.slice(pi + 1).every(q => q.v <= 0);
+        yCursor -= h;
+        const gap = pi > 0 ? 2 : 0; // 積み上げ間の2pxサーフェスギャップ
+        const shape = isTop ? roundedTop(x, yCursor + gap, colW, Math.max(1, h - gap), 4)
+                            : `M${x},${yCursor + gap} h${colW} v${Math.max(1, h - gap)} h-${colW} z`;
+        const seg = el("path", { d: shape, fill: p.color, class: "bar" });
+        seg.addEventListener("mousemove", ev => showTip(ev,
+          `<div class="tt-title">${cat}</div>` +
+          parts.map(q => `<div class="tt-row">${q.name}: ${fmt(q.v)} 尾</div>`).join("") +
+          `<div class="tt-row">計: ${fmt(totals[i])} 尾</div>`));
+        seg.addEventListener("mouseleave", hideTip);
+        svg.appendChild(seg);
+      });
+      svg.appendChild(el("text", { x: x + colW / 2, y: H - 8, "text-anchor": "middle", class: "axis-t" }, cat.slice(2).replace("-", "/")));
+    });
+    c.appendChild(svg);
+    c.appendChild(dataTable(["月", ...series.map(s => s.name), "計"],
+      cats.map((cat, i) => [cat, ...series.map(s => fmt(s.values[i])), fmt(totals[i])])));
+  }
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
+    for (const m of [1, 2, 5, 10]) if (m * p >= raw) return m * p;
+    return 10 * p;
+  }
+
+  // ---- 集計＆描画 ----
+  function render() {
+    const trips = filteredTrips();
+
+    // KPI
+    const totalCatch = trips.reduce((a, t) => a + t[T.total], 0);
+    const anglers = trips.reduce((a, t) => a + t[T.ang], 0);
+    const boatSet = new Set(trips.map(t => t[T.b]));
+    $("kpis").innerHTML = [
+      ["総釣果", fmt(totalCatch), "尾・杯"],
+      ["出船回数", fmt(trips.length), "便"],
+      ["出船船宿", boatSet.size + " / " + D.boats.length, "隻"],
+      ["平均釣果／人", anglers ? (totalCatch / anglers).toFixed(1) : "-", "尾／人"],
+    ].map(k => `<div class="kpi"><div class="label">${k[0]}</div><div class="value">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
+    $("boat-count").textContent = D.boats.length;
+
+    // 月別 × 湾
+    const months = [...new Set(trips.map(t => D.dates[t[T.d]].slice(0, 7)))].sort();
+    const byBay = { "相模湾": Object.create(null), "東京湾": Object.create(null) };
+    trips.forEach(t => {
+      const m = D.dates[t[T.d]].slice(0, 7);
+      const bay = D.boats[t[T.b]].bay;
+      byBay[bay][m] = (byBay[bay][m] || 0) + t[T.total];
+    });
+    stackedColumns("ch-monthly", months, [
+      { name: "相模湾", color: css("--series-1"), values: months.map(m => byBay["相模湾"][m] || 0) },
+      { name: "東京湾", color: css("--series-2"), values: months.map(m => byBay["東京湾"][m] || 0) },
+    ]);
+
+    // ランキング系
+    const sumBy = (keyFn) => {
+      const acc = new Map();
+      trips.forEach(t => { const k = keyFn(t); acc.set(k, (acc.get(k) || 0) + t[T.total]); });
+      return [...acc.entries()].sort((a, b) => b[1] - a[1]);
+    };
+    hbars("ch-species", sumBy(t => D.species[t[T.s]]).slice(0, 12).map(([k, v]) => ({ label: k, value: v })),
+      { dim: "魚種", onClick: r => { $("f-species").value = r.label; F.species = r.label; render(); } });
+    hbars("ch-boats", sumBy(t => t[T.b]).slice(0, 12).map(([k, v]) => ({ label: D.boats[k].name, value: v, bi: k })),
+      { dim: "船宿", onClick: r => { refreshBoatSelect(); $("f-boat").value = r.bi; F.boat = String(r.bi); render(); } });
+    hbars("ch-ports", sumBy(t => D.boats[t[T.b]].port).slice(0, 12).map(([k, v]) => ({ label: k, value: v })),
+      { dim: "港", onClick: r => { $("f-port").value = r.label; F.port = r.label; refreshBoatSelect(); render(); } });
+
+    // コンディション分析（平均釣果/人）
+    const perHead = (dim, labels, idx) => {
+      const sum = labels.map(() => 0), n = labels.map(() => 0);
+      trips.forEach(t => { const i = t[idx]; if (i >= 0 && t[T.ang] > 0) { sum[i] += t[T.total]; n[i] += t[T.ang]; } });
+      return labels.map((l, i) => ({ label: l, value: n[i] ? sum[i] / n[i] : 0, display: n[i] ? (sum[i] / n[i]).toFixed(1) : "-", tip: n[i] ? (sum[i] / n[i]).toFixed(2) + " 尾/人" : "データなし" }));
+    };
+    hbars("ch-weather", perHead("天候", D.weather, T.wx), { dim: "天候", tipLabel: "平均釣果/人", labelW: 70 });
+    hbars("ch-wind", perHead("風向", D.wind, T.wd), { dim: "風向", tipLabel: "平均釣果/人", labelW: 70 });
+    hbars("ch-tide", perHead("潮回り", D.tide, T.td), { dim: "潮回り", tipLabel: "平均釣果/人", labelW: 70 });
+
+    // アクセス数（期間内の月次ビュー合計 + ローカル予約クリック）
+    const cut = cutoffDate().slice(0, 7);
+    const vAcc = new Map();
+    D.views.forEach(([m, bi, v]) => {
+      const b = D.boats[bi];
+      if (cut && m < cut) return;
+      if (F.bay && b.bay !== F.bay) return;
+      if (F.pref && b.pref !== F.pref) return;
+      if (F.port && b.port !== F.port) return;
+      if (F.boat !== "" && bi !== +F.boat) return;
+      vAcc.set(bi, (vAcc.get(bi) || 0) + v);
+    });
+    for (const [bi, n] of vAcc) vAcc.set(bi, n + (clicks[D.boats[bi].id] || 0));
+    hbars("ch-access", [...vAcc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
+      .map(([bi, v]) => ({ label: D.boats[bi].name, value: v })), { dim: "船宿", tipLabel: "アクセス数" });
+
+    // 船宿テーブル
+    const catchByBoat = new Map(sumBy(t => t[T.b]));
+    $("boat-rows").innerHTML = D.boats.map((b, i) => {
+      if (F.bay && b.bay !== F.bay) return "";
+      if (F.pref && b.pref !== F.pref) return "";
+      if (F.port && b.port !== F.port) return "";
+      if (F.boat !== "" && i !== +F.boat) return "";
+      const targets = b.targets.map(t => `<span class="chip">${t}</span>`).join("");
+      const mark = b.confidence === "medium" ? " <span class='chip' title='掲載情報は要再確認'>要確認</span>" : "";
+      return `<tr><td><strong>${b.name}</strong>${mark}</td><td>${b.port}</td><td>${b.bay}</td><td>${b.pref}</td>
+        <td>${targets}</td><td class="num">${fmt(catchByBoat.get(i) || 0)}</td>
+        <td class="num">${fmt((vAcc.get(i) || 0))}</td>
+        <td><button class="btn-resv" onclick="reserve(${i})">予約する</button></td></tr>`;
+    }).join("");
+
+    $("gen-at").textContent = "データ更新: " + D.generated_at + "　対象期間: " + (cutoffDate() || D.dates[0]) + " 〜 " + maxDate;
+  }
+
+  render();
+})();
+</script>
