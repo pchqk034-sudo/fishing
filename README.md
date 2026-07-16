@@ -21,6 +21,7 @@ scripts/
 dashboard/
   index.html               ダッシュボード本体（依存ライブラリなし・静的1ページ）
   data.js                  集計済みデータ（aggregate.py が生成）
+  nisa/index.html          つみたてNISAシミュレーター（静的1ページ・/nisa/ で公開）
 .github/workflows/
   deploy-pages.yml         GitHub Pages への公開
   collect-daily.yml        毎朝の収集→集計→コミット（JST 6:00）

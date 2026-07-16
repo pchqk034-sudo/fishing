@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>つみたてNISA シミュレーター</title>
+<meta name="description" content="毎月の積立額・想定利回り・期間から将来の資産額を試算する新NISA(つみたて投資枠)シミュレーター。目標金額からの逆算にも対応。">
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;      /* チャート/カード面 */
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-principal: #2a78d6;  /* 元本 */
+    --series-gain: #008300;       /* 運用収益 */
+    --accent: #2a78d6;
+    --warn-bg: rgba(250,178,25,0.12);
+    --warn-border: rgba(250,178,25,0.5);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-principal: #3987e5;
+      --series-gain: #008300;
+      --accent: #3987e5;
+      --warn-bg: rgba(250,178,25,0.10);
+      --warn-border: rgba(250,178,25,0.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-principal: #3987e5;
+    --series-gain: #008300;
+    --accent: #3987e5;
+    --warn-bg: rgba(250,178,25,0.10);
+    --warn-border: rgba(250,178,25,0.45);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  header h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  header p { margin: 0 0 20px; color: var(--text-secondary); font-size: .9rem; }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  /* ---- モード切替 ---- */
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tabs button {
+    flex: 1 1 auto;
+    min-width: 140px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: .9rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .tabs button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* ---- 入力 ---- */
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label { display: block; font-size: .85rem; color: var(--text-secondary); margin-bottom: 6px; }
+  .field .row { display: flex; align-items: center; gap: 12px; }
+  .field input[type="range"] { flex: 1; accent-color: var(--accent); min-width: 0; }
+  .field .num {
+    display: flex; align-items: baseline; gap: 4px; flex: 0 0 auto;
+  }
+  .field input[type="number"] {
+    width: 110px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--page);
+    color: var(--text-primary);
+    font-size: .95rem;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .field .unit { color: var(--muted); font-size: .85rem; }
+
+  /* ---- 結果 ---- */
+  .hero-label { font-size: .85rem; color: var(--text-secondary); margin: 0; }
+  .hero { font-size: 3rem; font-weight: 600; margin: 0; line-height: 1.2; }
+  .hero small { font-size: 1.4rem; font-weight: 600; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 16px; }
+  .tile {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .tile .t-label { font-size: .78rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+  .tile .t-label .swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+  .tile .t-value { font-size: 1.25rem; font-weight: 600; margin-top: 2px; }
+
+  .notice {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: .85rem;
+    margin-top: 14px;
+  }
+  .notice + .notice { margin-top: 8px; }
+
+  /* ---- チャート ---- */
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .chart-head h2 { font-size: 1rem; margin: 0; }
+  .legend { display: flex; gap: 16px; font-size: .8rem; color: var(--text-secondary); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 12px; height: 12px; border-radius: 3px; }
+  .chart-box { position: relative; margin-top: 12px; }
+  .chart-box svg { display: block; width: 100%; height: auto; }
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    padding: 8px 12px;
+    font-size: .8rem;
+    display: none;
+    min-width: 150px;
+    z-index: 10;
+  }
+  .tooltip .tt-title { color: var(--text-secondary); margin-bottom: 4px; }
+  .tooltip .tt-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  .tooltip .tt-key { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .tooltip .tt-key i { display: inline-block; width: 12px; height: 0; border-top: 3px solid; border-radius: 2px; }
+  .tooltip .tt-val { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+
+  /* ---- テーブル ---- */
+  details summary { cursor: pointer; font-size: .9rem; color: var(--text-secondary); }
+  .table-wrap { overflow-x: auto; margin-top: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { color: var(--text-secondary); font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  td { font-variant-numeric: tabular-nums; }
+
+  footer { font-size: .78rem; color: var(--muted); }
+  footer ul { padding-left: 1.2em; margin: 8px 0; }
+  footer a { color: var(--accent); }
+  .back { font-size: .85rem; margin-bottom: 12px; }
+  .back a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="back"><a href="../index.html">← 釣果ダッシュボードへ</a></p>
+  <header>
+    <h1>つみたてNISA シミュレーター</h1>
+    <p>新NISA「つみたて投資枠」での積立投資を試算します。金額・利回り・期間を動かすと即座に再計算されます。</p>
+  </header>
+
+  <div class="tabs" role="group" aria-label="計算モード">
+    <button type="button" id="tab-fv" aria-pressed="true">将来いくらになる？</button>
+    <button type="button" id="tab-monthly" aria-pressed="false">毎月いくら積み立てる？</button>
+    <button type="button" id="tab-years" aria-pressed="false">目標まで何年かかる？</button>
+  </div>
+
+  <section class="card" aria-label="条件入力">
+    <div class="field" id="f-target" hidden>
+      <label for="n-target">目標金額</label>
+      <div class="row">
+        <input type="range" id="r-target" min="100" max="6000" step="100" value="1000" aria-hidden="true" tabindex="-1">
+        <span class="num"><input type="number" id="n-target" min="100" max="100000" step="100" value="1000"><span class="unit">万円</span></span>
+      </div>
+    </div>
+    <div class="field" id="f-monthly">
+      <label for="n-monthly">毎月の積立金額</label>
+      <div class="row">
+        <input type="range" id="r-monthly" min="1000" max="100000" step="1000" value="30000" aria-hidden="true" tabindex="-1">
+        <span class="num"><input type="number" id="n-monthly" min="100" max="100000" step="1000" value="30000"><span class="unit">円</span></span>
+      </div>
+    </div>
+    <div class="field" id="f-rate">
+      <label for="n-rate">想定利回り（年率）</label>
+      <div class="row">
+        <input type="range" id="r-rate" min="0" max="10" step="0.1" value="5" aria-hidden="true" tabindex="-1">
+        <span class="num"><input type="number" id="n-rate" min="0" max="30" step="0.1" value="5"><span class="unit">%</span></span>
+      </div>
+    </div>
+    <div class="field" id="f-years">
+      <label for="n-years">積立期間</label>
+      <div class="row">
+        <input type="range" id="r-years" min="1" max="40" step="1" value="20" aria-hidden="true" tabindex="-1">
+        <span class="num"><input type="number" id="n-years" min="1" max="50" step="1" value="20"><span class="unit">年</span></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="試算結果">
+    <p class="hero-label" id="hero-label">最終積立金額</p>
+    <p class="hero" id="hero-value">—</p>
+    <div class="tiles">
+      <div class="tile">
+        <div class="t-label"><span class="swatch" style="background:var(--series-principal)"></span>元本（積立総額）</div>
+        <div class="t-value" id="tile-principal">—</div>
+      </div>
+      <div class="tile">
+        <div class="t-label"><span class="swatch" style="background:var(--series-gain)"></span>運用収益</div>
+        <div class="t-value" id="tile-gain">—</div>
+      </div>
+      <div class="tile">
+        <div class="t-label">NISAの非課税メリット<span title="課税口座なら運用収益に20.315%課税される分">*</span></div>
+        <div class="t-value" id="tile-tax">—</div>
+      </div>
+    </div>
+    <div id="notices"></div>
+  </section>
+
+  <section class="card" aria-label="資産推移グラフ">
+    <div class="chart-head">
+      <h2>資産推移</h2>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--series-principal)"></span>元本</span>
+        <span><span class="swatch" style="background:var(--series-gain)"></span>運用収益</span>
+      </div>
+    </div>
+    <div class="chart-box" id="chart-box">
+      <svg id="chart" role="img" aria-label="年ごとの元本と運用収益の積み上げ推移"></svg>
+      <div class="tooltip" id="tooltip"></div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="年次推移表">
+    <details open>
+      <summary>年次推移表を表示</summary>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>経過</th><th>元本</th><th>運用収益</th><th>資産合計</th></tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <footer class="card">
+    <strong>試算の前提・注意事項</strong>
+    <ul>
+      <li>毎月末に一定額を積み立て、月次で複利運用（月利＝年率÷12）した場合の概算です。手数料・信託報酬・税金・分配金は考慮していません。</li>
+      <li>新NISAのつみたて投資枠は年間120万円（毎月上限10万円）、非課税保有限度額は成長投資枠と合わせて1,800万円（簿価）です。</li>
+      <li>非課税メリットは、課税口座で同じ運用をした場合に運用収益へかかる税率20.315%相当額として計算しています。</li>
+      <li>将来の運用成果を保証するものではありません。投資判断はご自身の責任で行ってください。</li>
+    </ul>
+    <strong>参考にした公開シミュレーター</strong>
+    <ul>
+      <li><a href="https://www.fsa.go.jp/policy/nisa2/tsumitate-simulator/" target="_blank" rel="noopener">金融庁 つみたてシミュレーター</a>（毎月積立額×利回り×期間の基本形）</li>
+      <li><a href="https://www.rakuten-sec.co.jp/web/fund/saving/simulation/" target="_blank" rel="noopener">楽天証券 積立かんたんシミュレーション</a>（目標金額からの逆算）</li>
+      <li><a href="https://go.sbisec.co.jp/prd/common/tsumitate_simulation.html" target="_blank" rel="noopener">SBI証券 積立シミュレーション</a>（NISA枠を意識した試算）</li>
+    </ul>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- 定数（新NISA制度） ----
+  const MONTHLY_CAP = 100000;        // つみたて投資枠: 月10万円（年120万円）
+  const LIFETIME_CAP = 18000000;     // 非課税保有限度額 1,800万円（簿価）
+  const TAX_RATE = 0.20315;          // 譲渡益課税 20.315%
+  const MAX_MONTHS = 12 * 60;        // 逆算モードの探索上限
+
+  const state = {
+    mode: "fv",            // fv | monthly | years
+    monthly: 30000,        // 円
+    target: 10000000,      // 円
+    rate: 5,               // % / 年
+    years: 20,
+  };
+
+  // ---- 計算 ----
+  // 毎月末積立・月次複利の将来価値
+  function futureValue(p, monthlyRate, months) {
+    if (monthlyRate === 0) return p * months;
+    return p * (Math.pow(1 + monthlyRate, months) - 1) / monthlyRate;
+  }
+  // 目標金額に必要な毎月積立額
+  function requiredMonthly(target, monthlyRate, months) {
+    if (monthlyRate === 0) return target / months;
+    return target * monthlyRate / (Math.pow(1 + monthlyRate, months) - 1);
+  }
+  // 目標金額到達に必要な月数
+  function requiredMonths(target, monthlyRate, p) {
+    if (monthlyRate === 0) return Math.ceil(target / p);
+    const n = Math.log(target * monthlyRate / p + 1) / Math.log(1 + monthlyRate);
+    return Math.ceil(n);
+  }
+
+  // 現在のモードで試算し、月次パラメータと年次系列を返す
+  function compute() {
+    const mr = state.rate / 100 / 12;
+    let monthly = state.monthly;
+    let months = state.years * 12;
+    let reachedTarget = true;
+
+    if (state.mode === "monthly") {
+      monthly = requiredMonthly(state.target, mr, months);
+      monthly = Math.ceil(monthly / 100) * 100; // 100円単位に切り上げ
+    } else if (state.mode === "years") {
+      months = requiredMonths(state.target, mr, monthly);
+      if (!isFinite(months) || months > MAX_MONTHS) {
+        months = MAX_MONTHS;
+        reachedTarget = false;
+      }
+    }
+
+    const yearsCeil = Math.ceil(months / 12);
+    const points = [{ year: 0, months: 0, principal: 0, total: 0 }];
+    for (let y = 1; y <= yearsCeil; y++) {
+      const m = Math.min(y * 12, months);
+      const principal = monthly * m;
+      const total = futureValue(monthly, mr, m);
+      points.push({ year: y, months: m, principal, total });
+    }
+    const last = points[points.length - 1];
+
+    // 非課税保有限度額(元本ベース)到達月
+    let capMonth = null;
+    if (monthly > 0 && last.principal > LIFETIME_CAP) {
+      capMonth = Math.ceil(LIFETIME_CAP / monthly) + 1;
+      if (capMonth > months) capMonth = null;
+    }
+
+    return {
+      monthly, months, points, reachedTarget, capMonth,
+      principal: last.principal,
+      total: last.total,
+      gain: Math.max(0, last.total - last.principal),
+    };
+  }
+
+  // ---- 表示ユーティリティ ----
+  const fmtInt = new Intl.NumberFormat("ja-JP");
+  function fmtYen(v) {
+    return fmtInt.format(Math.round(v)) + "円";
+  }
+  // 万円・億円表記（見出し・軸用）
+  function fmtMan(v, decimals) {
+    const man = v / 10000;
+    if (man >= 10000) {
+      const oku = Math.floor(man / 10000);
+      const rest = Math.round(man - oku * 10000);
+      return rest > 0 ? `${fmtInt.format(oku)}億${fmtInt.format(rest)}万円` : `${fmtInt.format(oku)}億円`;
+    }
+    const d = decimals ?? (man < 100 ? 1 : 0);
+    return fmtInt.format(Number(man.toFixed(d))) + "万円";
+  }
+  function fmtPeriod(months) {
+    const y = Math.floor(months / 12), m = months % 12;
+    if (y === 0) return `${m}ヶ月`;
+    return m === 0 ? `${y}年` : `${y}年${m}ヶ月`;
+  }
+
+  // ---- DOM ----
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    tabs: { fv: $("tab-fv"), monthly: $("tab-monthly"), years: $("tab-years") },
+    fields: { target: $("f-target"), monthly: $("f-monthly"), years: $("f-years") },
+    heroLabel: $("hero-label"), heroValue: $("hero-value"),
+    tilePrincipal: $("tile-principal"), tileGain: $("tile-gain"), tileTax: $("tile-tax"),
+    notices: $("notices"),
+    chartBox: $("chart-box"), chart: $("chart"), tooltip: $("tooltip"),
+    tableBody: $("table-body"),
+  };
+
+  function setNotice(messages) {
+    els.notices.textContent = "";
+    for (const msg of messages) {
+      const div = document.createElement("div");
+      div.className = "notice";
+      div.textContent = "⚠ " + msg;
+      els.notices.appendChild(div);
+    }
+  }
+
+  let lastResult = null;
+
+  function render() {
+    const res = compute();
+    lastResult = res;
+
+    // 見出し
+    if (state.mode === "fv") {
+      els.heroLabel.textContent = `最終積立金額（${state.years}年後）`;
+      els.heroValue.textContent = fmtMan(res.total);
+    } else if (state.mode === "monthly") {
+      els.heroLabel.textContent = `目標${fmtMan(state.target, 0)}に必要な毎月の積立額（${state.years}年間）`;
+      els.heroValue.textContent = fmtYen(res.monthly);
+    } else {
+      els.heroLabel.textContent = `目標${fmtMan(state.target, 0)}到達までの期間（毎月${fmtYen(state.monthly)}）`;
+      els.heroValue.textContent = res.reachedTarget ? fmtPeriod(res.months) : "60年超";
+    }
+
+    els.tilePrincipal.textContent = fmtMan(res.principal);
+    els.tileGain.textContent = fmtMan(res.gain);
+    els.tileTax.textContent = "約" + fmtMan(res.gain * TAX_RATE);
+
+    // 制度上の注意
+    const notices = [];
+    if (res.monthly > MONTHLY_CAP) {
+      notices.push(`毎月${fmtYen(res.monthly)}は、つみたて投資枠の上限（月10万円）を超えています。超過分は成長投資枠（年240万円）の併用をご検討ください。`);
+    }
+    if (res.capMonth) {
+      notices.push(`積立元本が${fmtPeriod(res.capMonth)}目で非課税保有限度額1,800万円に到達します。以降の積立は非課税枠の対象外です。`);
+    }
+    if (state.mode === "years" && !res.reachedTarget) {
+      notices.push("この条件では60年以内に目標金額へ到達しません。積立額または利回りを見直してください。");
+    }
+    setNotice(notices);
+
+    drawChart(res);
+    renderTable(res);
+  }
+
+  // ---- テーブル ----
+  function renderTable(res) {
+    els.tableBody.textContent = "";
+    for (const pt of res.points) {
+      if (pt.year === 0) continue;
+      const tr = document.createElement("tr");
+      const cells = [
+        pt.months % 12 === 0 ? `${pt.year}年` : fmtPeriod(pt.months),
+        fmtYen(pt.principal),
+        fmtYen(Math.max(0, pt.total - pt.principal)),
+        fmtYen(pt.total),
+      ];
+      for (const c of cells) {
+        const td = document.createElement("td");
+        td.textContent = c;
+        tr.appendChild(td);
+      }
+      els.tableBody.appendChild(tr);
+    }
+  }
+
+  // ---- チャート（積み上げ面グラフ） ----
+  const M = { top: 16, right: 76, bottom: 28, left: 64 };
+
+  function niceTicks(maxV, count) {
+    if (maxV <= 0) return [0, 1];
+    const rough = maxV / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+    let step = mag;
+    for (const k of [1, 2, 2.5, 5, 10]) {
+      if (rough <= k * mag) { step = k * mag; break; }
+    }
+    const top = Math.ceil(maxV / step - 1e-9) * step; // 最上段の目盛りがデータ最大値を必ず覆う
+    const ticks = [];
+    for (let v = 0; v <= top + step * 0.001; v += step) ticks.push(v);
+    return ticks;
+  }
+
+  function svgEl(name, attrs) {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+    for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+    return el;
+  }
+
+  let chartGeom = null; // ホバー用の座標情報
+
+  function drawChart(res) {
+    const svg = els.chart;
+    svg.textContent = "";
+    const W = Math.max(320, els.chartBox.clientWidth);
+    const H = Math.min(380, Math.max(240, Math.round(W * 0.45)));
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("width", W);
+    svg.setAttribute("height", H);
+
+    const pts = res.points;
+    const maxYear = pts[pts.length - 1].year;
+    const maxV = Math.max(1, pts[pts.length - 1].total);
+    const plotW = W - M.left - M.right;
+    const plotH = H - M.top - M.bottom;
+    const x = (yr) => M.left + (maxYear === 0 ? 0 : yr / maxYear * plotW);
+    const yTicks = niceTicks(maxV, 4);
+    const yMax = yTicks[yTicks.length - 1];
+    const y = (v) => M.top + plotH - v / yMax * plotH;
+
+    const css = getComputedStyle(document.documentElement);
+    const cGrid = css.getPropertyValue("--grid").trim();
+    const cBase = css.getPropertyValue("--baseline").trim();
+    const cMuted = css.getPropertyValue("--muted").trim();
+    const cPrincipal = css.getPropertyValue("--series-principal").trim();
+    const cGain = css.getPropertyValue("--series-gain").trim();
+    const cText = css.getPropertyValue("--text-secondary").trim();
+
+    // 横グリッド + Y軸ラベル（万円）
+    for (const t of yTicks) {
+      const gy = y(t);
+      svg.appendChild(svgEl("line", { x1: M.left, x2: W - M.right, y1: gy, y2: gy, stroke: t === 0 ? cBase : cGrid, "stroke-width": 1 }));
+      const label = svgEl("text", { x: M.left - 8, y: gy + 4, "text-anchor": "end", "font-size": 11, fill: cMuted, style: "font-variant-numeric: tabular-nums" });
+      label.textContent = t === 0 ? "0" : fmtInt.format(Math.round(t / 10000)) + "万";
+      svg.appendChild(label);
+    }
+    // X軸ラベル（年）: 幅に収まる本数まで間引く
+    const maxLabels = Math.max(4, Math.floor(plotW / 55));
+    let xStep = 20;
+    for (const s of [1, 2, 5, 10, 20]) {
+      if (maxYear / s <= maxLabels) { xStep = s; break; }
+    }
+    for (let yr = 0; yr <= maxYear; yr += xStep) {
+      const label = svgEl("text", { x: x(yr), y: H - M.bottom + 18, "text-anchor": "middle", "font-size": 11, fill: cMuted });
+      label.textContent = yr === 0 ? "0" : `${yr}年`;
+      svg.appendChild(label);
+    }
+
+    // 面: 元本（下段）と運用収益（上段）
+    const baseY = y(0);
+    const pathPrincipal = pts.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.year)},${y(p.principal)}`).join("");
+    const pathTotal = pts.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.year)},${y(p.total)}`).join("");
+    const areaPrincipal = pathPrincipal + `L${x(maxYear)},${baseY}L${x(0)},${baseY}Z`;
+    const areaGain = pathTotal + pts.slice().reverse().map((p) => `L${x(p.year)},${y(p.principal)}`).join("") + "Z";
+
+    svg.appendChild(svgEl("path", { d: areaPrincipal, fill: cPrincipal, "fill-opacity": 0.12 }));
+    svg.appendChild(svgEl("path", { d: areaGain, fill: cGain, "fill-opacity": 0.12 }));
+    svg.appendChild(svgEl("path", { d: pathPrincipal, fill: "none", stroke: cPrincipal, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    svg.appendChild(svgEl("path", { d: pathTotal, fill: "none", stroke: cGain, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+
+    // 終端の直接ラベル（合計のみ・選択的に）
+    const last = pts[pts.length - 1];
+    const endLabel = svgEl("text", { x: x(last.year) + 6, y: Math.max(M.top + 10, y(last.total) + 4), "font-size": 11, "font-weight": 600, fill: cText });
+    endLabel.textContent = fmtMan(last.total);
+    svg.appendChild(endLabel);
+
+    // ホバー用ジオメトリを保存
+    chartGeom = { pts, x, y, W, H, baseY, maxYear };
+
+    // クロスヘア(初期は非表示)
+    const cross = svgEl("line", { id: "crosshair", y1: M.top, y2: baseY, stroke: cBase, "stroke-width": 1, visibility: "hidden" });
+    svg.appendChild(cross);
+    const dotP = svgEl("circle", { id: "dot-p", r: 4.5, fill: cPrincipal, stroke: "var(--surface-1)", "stroke-width": 2, visibility: "hidden" });
+    const dotT = svgEl("circle", { id: "dot-t", r: 4.5, fill: cGain, stroke: "var(--surface-1)", "stroke-width": 2, visibility: "hidden" });
+    svg.appendChild(dotP);
+    svg.appendChild(dotT);
+  }
+
+  // ---- ホバー / ツールチップ ----
+  function ttRow(color, name, value) {
+    const row = document.createElement("div");
+    row.className = "tt-row";
+    const key = document.createElement("span");
+    key.className = "tt-key";
+    const bar = document.createElement("i");
+    bar.style.borderTopColor = color;
+    key.appendChild(bar);
+    key.appendChild(document.createTextNode(name));
+    const val = document.createElement("span");
+    val.className = "tt-val";
+    val.textContent = value;
+    row.appendChild(key);
+    row.appendChild(val);
+    return row;
+  }
+
+  function onPointerMove(ev) {
+    if (!chartGeom) return;
+    const rect = els.chart.getBoundingClientRect();
+    const px = (ev.clientX - rect.left) * (chartGeom.W / rect.width);
+    const { pts, x, y } = chartGeom;
+    // 最も近い年にスナップ
+    let nearest = pts[0], best = Infinity;
+    for (const p of pts) {
+      const d = Math.abs(x(p.year) - px);
+      if (d < best) { best = d; nearest = p; }
+    }
+    const cx = x(nearest.year);
+    const svg = els.chart;
+    const css = getComputedStyle(document.documentElement);
+    const cPrincipal = css.getPropertyValue("--series-principal").trim();
+    const cGain = css.getPropertyValue("--series-gain").trim();
+
+    const cross = svg.querySelector("#crosshair");
+    cross.setAttribute("x1", cx); cross.setAttribute("x2", cx);
+    cross.setAttribute("visibility", "visible");
+    const dotP = svg.querySelector("#dot-p");
+    dotP.setAttribute("cx", cx); dotP.setAttribute("cy", y(nearest.principal)); dotP.setAttribute("visibility", "visible");
+    const dotT = svg.querySelector("#dot-t");
+    dotT.setAttribute("cx", cx); dotT.setAttribute("cy", y(nearest.total)); dotT.setAttribute("visibility", "visible");
+
+    // ツールチップ
+    const tt = els.tooltip;
+    tt.textContent = "";
+    const title = document.createElement("div");
+    title.className = "tt-title";
+    title.textContent = nearest.year === 0 ? "開始時" : (nearest.months % 12 === 0 ? `${nearest.year}年目` : fmtPeriod(nearest.months));
+    tt.appendChild(title);
+    tt.appendChild(ttRow(cGain, "資産合計", fmtMan(nearest.total)));
+    tt.appendChild(ttRow(cGain, "運用収益", fmtMan(Math.max(0, nearest.total - nearest.principal))));
+    tt.appendChild(ttRow(cPrincipal, "元本", fmtMan(nearest.principal)));
+    tt.style.display = "block";
+    const boxRect = els.chartBox.getBoundingClientRect();
+    const ttW = tt.offsetWidth;
+    let left = (cx / chartGeom.W) * boxRect.width + 12;
+    if (left + ttW > boxRect.width - 4) left = (cx / chartGeom.W) * boxRect.width - ttW - 12;
+    tt.style.left = Math.max(4, left) + "px";
+    tt.style.top = "16px";
+  }
+  function onPointerLeave() {
+    els.tooltip.style.display = "none";
+    for (const id of ["#crosshair", "#dot-p", "#dot-t"]) {
+      const el = els.chart.querySelector(id);
+      if (el) el.setAttribute("visibility", "hidden");
+    }
+  }
+  els.chartBox.addEventListener("pointermove", onPointerMove);
+  els.chartBox.addEventListener("pointerleave", onPointerLeave);
+
+  // ---- 入力の同期 ----
+  function bindPair(rangeId, numId, key, opts = {}) {
+    const r = $(rangeId), n = $(numId);
+    const apply = (v, src) => {
+      let val = Number(v);
+      if (!isFinite(val)) return;
+      const min = Number(n.min), max = Number(n.max);
+      if (src === "num-change") val = Math.min(max, Math.max(min, val));
+      state[key] = opts.scale ? val * opts.scale : val;
+      if (src !== "range") r.value = Math.min(Number(r.max), Math.max(Number(r.min), val));
+      if (src === "range" || src === "num-change") n.value = val;
+      render();
+    };
+    r.addEventListener("input", () => apply(r.value, "range"));
+    n.addEventListener("input", () => { if (n.value !== "") apply(n.value, "num"); });
+    n.addEventListener("change", () => apply(n.value === "" ? n.min : n.value, "num-change"));
+  }
+  bindPair("r-monthly", "n-monthly", "monthly");
+  bindPair("r-rate", "n-rate", "rate");
+  bindPair("r-years", "n-years", "years");
+  bindPair("r-target", "n-target", "target", { scale: 10000 }); // 万円 → 円
+
+  // ---- モード切替 ----
+  function setMode(mode) {
+    state.mode = mode;
+    for (const [k, btn] of Object.entries(els.tabs)) {
+      btn.setAttribute("aria-pressed", String(k === mode));
+    }
+    els.fields.target.hidden = mode === "fv";
+    els.fields.monthly.hidden = mode === "monthly";
+    els.fields.years.hidden = mode === "years";
+    render();
+  }
+  els.tabs.fv.addEventListener("click", () => setMode("fv"));
+  els.tabs.monthly.addEventListener("click", () => setMode("monthly"));
+  els.tabs.years.addEventListener("click", () => setMode("years"));
+
+  // リサイズで再描画
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (lastResult) drawChart(lastResult); }, 120);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
