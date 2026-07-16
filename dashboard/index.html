@@ -98,6 +98,37 @@
   .note { color:var(--muted); font-size:11.5px; margin-top:6px; }
   footer { margin-top:34px; color:var(--muted); font-size:11.5px; border-top:1px solid var(--grid); padding-top:12px; }
   footer a { color:var(--text-secondary); }
+  path.bar { -webkit-tap-highlight-color:transparent; }
+
+  /* ---- スマホ対応 ---- */
+  @media (max-width: 700px) {
+    body { padding:14px 10px 50px; }
+    header h1 { font-size:19px; }
+    header p { font-size:12px; }
+    .kpis { grid-template-columns:1fr 1fr; gap:8px; margin:14px 0; }
+    .kpi { padding:10px 12px; }
+    .kpi .value { font-size:22px; }
+    .filters { position:static; display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:10px 12px; }
+    .filters label { width:100%; }
+    .filters select { width:100%; min-width:0; min-height:40px; }
+    .filters button { grid-column:1/-1; min-height:40px; }
+    .grid { grid-template-columns:1fr; gap:10px; }
+    .card { padding:13px 14px; }
+    section.block > h2 { font-size:15px; }
+    /* 船宿一覧: テーブル → カード */
+    table.boats { display:block; border:none; background:transparent; }
+    table.boats thead { display:none; }
+    table.boats tbody { display:grid; gap:10px; }
+    table.boats tr { display:grid; grid-template-columns:1fr 1fr 1fr; gap:3px 12px;
+      background:var(--surface-1); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+    table.boats td { border:none; padding:1px 0; }
+    table.boats td.num { text-align:left; }
+    table.boats td[data-label]::before { content:attr(data-label); display:block; color:var(--muted); font-size:10.5px; }
+    table.boats td:nth-child(1) { grid-column:1/-1; font-size:15px; }
+    table.boats td:nth-child(5) { grid-column:1/-1; margin:2px 0; }
+    table.boats td:nth-child(8) { grid-column:1/-1; margin-top:6px; }
+    .btn-resv { width:100%; padding:10px; font-size:13px; }
+  }
 </style>
 
 <header>
@@ -290,6 +321,8 @@
     tip.style.left = x + "px"; tip.style.top = y + "px";
   }
   function hideTip() { tip.style.display = "none"; }
+  document.addEventListener("pointerdown", e => { if (!e.target.closest("path.bar")) hideTip(); }); // タップで閉じる
+  document.addEventListener("scroll", hideTip, { passive: true });
 
   // ---- チャート描画ヘルパ ----
   const NS = "http://www.w3.org/2000/svg";
@@ -321,8 +354,9 @@
   function hbars(containerId, rows, opts = {}) {
     const c = $(containerId); c.innerHTML = "";
     if (!rows.length) { c.innerHTML = "<p class='note'>該当データがありません</p>"; return; }
-    const labelW = opts.labelW || 110, valueW = 52, rowH = 27, barH = 18;
-    const W = 460, plotW = W - labelW - valueW, H = rows.length * rowH + 6;
+    const W = Math.max(280, Math.min(c.clientWidth || 460, 640));
+    const labelW = Math.min(opts.labelW || 110, Math.round(W * 0.3)), valueW = 52, rowH = 27, barH = 18;
+    const plotW = W - labelW - valueW, H = rows.length * rowH + 6;
     const max = Math.max(...rows.map(r => r.value), 1e-9);
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
     rows.forEach((r, i) => {
@@ -332,8 +366,9 @@
         r.label.length > 9 ? r.label.slice(0, 9) + "…" : r.label);
       svg.appendChild(lbl);
       const bar = el("path", { d: roundedRight(labelW, y, w, barH, 4), fill: css("--series-1"), class: "bar" });
-      bar.addEventListener("mousemove", ev => showTip(ev,
-        `<div class="tt-title">${r.label}</div><div class="tt-row">${opts.tipLabel || "釣果"}: ${r.tip ?? fmt(r.value)}</div>`));
+      const tipHtml = `<div class="tt-title">${r.label}</div><div class="tt-row">${opts.tipLabel || "釣果"}: ${r.tip ?? fmt(r.value)}</div>`;
+      bar.addEventListener("pointermove", ev => showTip(ev, tipHtml));
+      bar.addEventListener("pointerdown", ev => showTip(ev, tipHtml)); // タップ対応
       bar.addEventListener("mouseleave", hideTip);
       if (opts.onClick) bar.addEventListener("click", () => opts.onClick(r));
       svg.appendChild(bar);
@@ -346,7 +381,7 @@
   // 積み上げ縦棒（月別 × 湾）
   function stackedColumns(containerId, cats, series) {
     const c = $(containerId); c.innerHTML = "";
-    const W = 940, H = 240, padL = 46, padR = 10, padT = 12, padB = 26;
+    const W = Math.max(300, c.clientWidth || 940), H = 240, padL = 46, padR = 10, padT = 12, padB = 26;
     const plotW = W - padL - padR, plotH = H - padT - padB;
     const totals = cats.map((_, i) => series.reduce((a, s) => a + s.values[i], 0));
     const max = Math.max(...totals, 1);
@@ -359,7 +394,8 @@
       svg.appendChild(el("text", { x: padL - 6, y: y + 3.5, "text-anchor": "end", class: "axis-t" }, fmt(v)));
     }
     const bandW = plotW / cats.length;
-    const colW = Math.min(24, bandW * 0.55);
+    const colW = Math.min(24, Math.max(8, bandW * 0.55));
+    const labelEvery = Math.max(1, Math.ceil(44 / bandW)); // 狭い画面では月ラベルを間引く
     cats.forEach((cat, i) => {
       const x = padL + i * bandW + (bandW - colW) / 2;
       let yCursor = padT + plotH;
@@ -373,14 +409,15 @@
         const shape = isTop ? roundedTop(x, yCursor + gap, colW, Math.max(1, h - gap), 4)
                             : `M${x},${yCursor + gap} h${colW} v${Math.max(1, h - gap)} h-${colW} z`;
         const seg = el("path", { d: shape, fill: p.color, class: "bar" });
-        seg.addEventListener("mousemove", ev => showTip(ev,
-          `<div class="tt-title">${cat}</div>` +
+        const tipHtml = `<div class="tt-title">${cat}</div>` +
           parts.map(q => `<div class="tt-row">${q.name}: ${fmt(q.v)} 尾</div>`).join("") +
-          `<div class="tt-row">計: ${fmt(totals[i])} 尾</div>`));
+          `<div class="tt-row">計: ${fmt(totals[i])} 尾</div>`;
+        seg.addEventListener("pointermove", ev => showTip(ev, tipHtml));
+        seg.addEventListener("pointerdown", ev => showTip(ev, tipHtml)); // タップ対応
         seg.addEventListener("mouseleave", hideTip);
         svg.appendChild(seg);
       });
-      svg.appendChild(el("text", { x: x + colW / 2, y: H - 8, "text-anchor": "middle", class: "axis-t" }, cat.slice(2).replace("-", "/")));
+      if (i % labelEvery === 0) svg.appendChild(el("text", { x: x + colW / 2, y: H - 8, "text-anchor": "middle", class: "axis-t" }, cat.slice(2).replace("-", "/")));
     });
     c.appendChild(svg);
     c.appendChild(dataTable(["月", ...series.map(s => s.name), "計"],
@@ -469,9 +506,9 @@
       if (F.boat !== "" && i !== +F.boat) return "";
       const targets = b.targets.map(t => `<span class="chip">${t}</span>`).join("");
       const mark = b.confidence === "medium" ? " <span class='chip' title='掲載情報は要再確認'>要確認</span>" : "";
-      return `<tr><td><strong>${b.name}</strong>${mark}</td><td>${b.port}</td><td>${b.bay}</td><td>${b.pref}</td>
-        <td>${targets}</td><td class="num">${fmt(catchByBoat.get(i) || 0)}</td>
-        <td class="num">${fmt((vAcc.get(i) || 0))}</td>
+      return `<tr><td><strong>${b.name}</strong>${mark}</td><td data-label="港">${b.port}</td><td data-label="湾">${b.bay}</td><td data-label="都県">${b.pref}</td>
+        <td>${targets}</td><td class="num" data-label="期間内釣果">${fmt(catchByBoat.get(i) || 0)}</td>
+        <td class="num" data-label="アクセス">${fmt((vAcc.get(i) || 0))}</td>
         <td><button class="btn-resv" onclick="reserve(${i})">予約する</button></td></tr>`;
     }).join("");
 
@@ -479,5 +516,9 @@
   }
 
   render();
+
+  // 画面回転・リサイズ時はコンテナ幅でチャートを描き直す
+  let rzTimer;
+  addEventListener("resize", () => { clearTimeout(rzTimer); rzTimer = setTimeout(render, 150); });
 })();
 </script>
