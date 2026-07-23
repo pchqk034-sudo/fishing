@@ -640,7 +640,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       <div id="ph-preview"></div>
       <div id="ph-status"></div>
       <div id="ph-result"></div>
-      ${hasKey ? "" : `<p class="warn-box">⚠️ AI解析には設定画面で Claude API キーの登録が必要です。未登録の場合は「料理を選ぶ」から手動で追加してください。</p>`}`;
+      ${hasKey ? "" : `<p class="warn-box">⚠️ AI解析には設定画面でAPIキーの登録が必要です（無料のGoogle Geminiも選べます）。未登録の場合は「料理を選ぶ」から手動で追加してください。</p>`}`;
     $("#ph-file", body).onchange = (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -657,6 +657,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     const statusEl = $("#ph-status", modal);
     const resultEl = $("#ph-result", modal);
     const key = State.data.settings.apiKey;
+    const provider = State.data.settings.provider || "anthropic";
     if (!key) { statusEl.innerHTML = `<p class="muted">APIキー未設定のため解析できません。</p>`; return; }
     statusEl.innerHTML = `<p class="loading">🤖 AIが解析中…（数秒かかります）</p>`;
     resultEl.innerHTML = "";
@@ -665,38 +666,67 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     const schemaHint = `次のJSON形式のみで回答してください（説明文やコードブロックは不要）:
 {"items":[{"name":"料理名","kcal":整数,"p":たんぱく質g,"f":脂質g,"c":炭水化物g,"fiber":食物繊維g,"salt":食塩相当量g,"ingredients":["主な食材",...]}]}
 写真に写る料理ごとに1食分の推定値を入れてください。`;
+    const prompt = `この料理写真を管理栄養士として分析してください。${schemaHint}`;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": key,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-opus-4-8",
-          max_tokens: 1024,
-          messages: [{
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: media, data: b64 } },
-              { type: "text", text: `この料理写真を管理栄養士として分析してください。${schemaHint}` },
-            ],
-          }],
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`APIエラー ${res.status}: ${err.slice(0, 200)}`);
-      }
-      const json = await res.json();
-      const text = (json.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
-      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-      showPhotoResult(parsed.items || [], slot, modal, statusEl, resultEl);
+      const items = provider === "gemini"
+        ? await callGemini(key, media, b64, prompt)
+        : await callAnthropic(key, media, b64, prompt);
+      showPhotoResult(items, slot, modal, statusEl, resultEl);
     } catch (e) {
       statusEl.innerHTML = `<p class="warn-box">解析に失敗しました: ${e.message}<br>「料理を選ぶ」から手動で追加してください。</p>`;
     }
+  }
+  function extractItems(text) {
+    const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+    return parsed.items || [];
+  }
+  // Anthropic Claude で解析（ブラウザ直接呼び出し）
+  async function callAnthropic(key, media, b64, prompt) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-8",
+        max_tokens: 1024,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: media, data: b64 } },
+            { type: "text", text: prompt },
+          ],
+        }],
+      }),
+    });
+    if (!res.ok) throw new Error(`APIエラー ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const json = await res.json();
+    const text = (json.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+    return extractItems(text);
+  }
+  // Google Gemini で解析（無料枠あり）
+  async function callGemini(key, media, b64, prompt) {
+    const model = "gemini-2.5-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { inline_data: { mime_type: media, data: b64 } },
+          { text: prompt },
+        ] }],
+        generationConfig: { responseMimeType: "application/json" },
+      }),
+    });
+    if (!res.ok) throw new Error(`Geminiエラー ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const json = await res.json();
+    const text = ((json.candidates || [])[0]?.content?.parts || []).map((p) => p.text || "").join("");
+    if (!text) throw new Error("応答が空でした（無料枠の上限や画像内容をご確認ください）");
+    return extractItems(text);
   }
   function showPhotoResult(items, slot, modal, statusEl, resultEl) {
     if (!items.length) { statusEl.innerHTML = `<p class="muted">料理を検出できませんでした。</p>`; return; }
@@ -1107,18 +1137,31 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
   // ==========================================================================
   function renderSettings(view) {
     const s = State.data.settings;
+    const provider = s.provider || "anthropic";
     const dayCount = Object.keys(State.data.logs).filter((k) => dayTotals(State.log(k)).all.kcal > 0).length;
+    const info = provider === "gemini"
+      ? { name: "Google Gemini（無料枠あり）", ph: "AIza...", link: "https://aistudio.google.com/app/apikey", linkName: "Google AI Studio",
+          note: "無料枠内なら課金なしで使えます（1日あたりの回数制限あり）。" }
+      : { name: "Anthropic Claude（有料）", ph: "sk-ant-...", link: "https://console.anthropic.com/settings/keys", linkName: "Anthropic Console",
+          note: "従量課金です。残高（クレジット）の登録が必要です。" };
     view.innerHTML = `
       <section class="card">
         <h2>設定</h2>
         <h3>写真AI解析（任意）</h3>
-        <p class="muted">Claude の画像解析APIを使うと、料理写真からカロリー・食材・栄養素を自動推定できます。
-          APIキーはこの端末のブラウザ内（localStorage）にのみ保存され、外部に送信されるのは解析時のAnthropic APIへの通信のみです。</p>
-        <label class="block">Claude API キー
-          <input type="password" id="set-key" value="${s.apiKey || ""}" placeholder="sk-ant-...">
+        <p class="muted">料理写真からカロリー・食材・栄養素を自動推定します。APIキーはこの端末のブラウザ内（localStorage）にのみ保存され、
+          外部へ送られるのは解析時に選んだAIサービスへの通信だけです。</p>
+        <label class="block">使うAIサービス
+          <select id="set-provider">
+            <option value="gemini" ${provider === "gemini" ? "selected" : ""}>Google Gemini（無料枠あり）</option>
+            <option value="anthropic" ${provider === "anthropic" ? "selected" : ""}>Anthropic Claude（有料）</option>
+          </select>
+        </label>
+        <label class="block">${info.name} のAPIキー
+          <input type="password" id="set-key" value="${s.apiKey || ""}" placeholder="${info.ph}">
         </label>
         <button class="btn primary" id="set-save">キーを保存</button>
-        <p class="muted">キーは <a href="https://console.anthropic.com/" target="_blank" rel="noopener">Anthropic Console</a> で取得できます。未設定でも手動記録・分析・グラフはすべて利用できます。</p>
+        <p class="muted">${info.note} キーは <a href="${info.link}" target="_blank" rel="noopener">${info.linkName}</a> で取得できます。
+          未設定でも手動記録・分析・グラフはすべて利用できます。</p>
       </section>
 
       <section class="card">
@@ -1130,7 +1173,12 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
           <button class="btn danger" id="set-reset">全データを消去</button>
         </div>
       </section>`;
+    $("#set-provider").onchange = (e) => {
+      State.data.settings.provider = e.target.value;
+      State.save(); renderSettings(view); // ラベル・リンクを切り替え
+    };
     $("#set-save").onclick = () => {
+      State.data.settings.provider = $("#set-provider").value;
       State.data.settings.apiKey = $("#set-key").value.trim();
       State.save(); alert("保存しました。");
     };
