@@ -1,11 +1,14 @@
-# ダッシュボードを GitHub Pages に公開するワークフロー。
+# ダッシュボード＋食事管理アプリを GitHub Pages に公開するワークフロー。
 # 有効化手順: リポジトリ Settings → Pages → Source を「GitHub Actions」にする。
-name: Deploy dashboard to GitHub Pages
+# 公開後のURL:
+#   釣果ダッシュボード:   https://<ユーザー名>.github.io/<リポジトリ名>/
+#   食事管理アプリ:       https://<ユーザー名>.github.io/<リポジトリ名>/meal/
+name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
-    paths: ["dashboard/**"]
+    branches: [main, claude/meal-tracking-health-app-aglb0j]
+    paths: ["dashboard/**", "meal/**"]
   workflow_dispatch:
 
 permissions:
@@ -25,9 +28,15 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # サイトルートに dashboard/、サブフォルダ /meal/ に食事管理アプリを配置
+      - name: サイトを組み立てる
+        run: |
+          mkdir -p _site/meal
+          cp -r dashboard/* _site/
+          cp -r meal/* _site/meal/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dashboard
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
