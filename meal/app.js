@@ -29,6 +29,7 @@
       if (!this.data) this.data = { profile: null, logs: {}, settings: {} };
       if (!this.data.logs) this.data.logs = {};
       if (!this.data.settings) this.data.settings = {};
+      if (!this.data.customFoods) this.data.customFoods = [];
       // キーはサービスごとに保持。旧形式(apiKey単一)があれば移行する。
       const s = this.data.settings;
       if (!s.keys) s.keys = { gemini: "", anthropic: "" };
@@ -235,9 +236,12 @@
     const log = State.log(recordDate);
     view.innerHTML = `
       <section class="card">
-        <div class="row between">
+        <div class="row between wrap">
           <h2>記録する</h2>
-          <input type="date" id="rec-date" value="${recordDate}" max="${todayStr()}">
+          <div class="row wrap" style="gap:8px">
+            <input type="date" id="rec-date" value="${recordDate}" max="${todayStr()}">
+            ${recordDate === todayStr() ? "" : `<button class="btn sm" id="rec-today">今日に戻る</button>`}
+          </div>
         </div>
 
         <div class="meals">
@@ -270,6 +274,8 @@
       </section>`;
 
     $("#rec-date").onchange = (e) => { recordDate = e.target.value; render(); };
+    const recToday = $("#rec-today");
+    if (recToday) recToday.onclick = () => { recordDate = todayStr(); render(); };
     MEAL_SLOTS.forEach((s) => {
       $(`#add-${s.key}`).onclick = () => openFoodPicker(s);
       $(`#photo-${s.key}`).onclick = () => openPhotoPicker(s);
@@ -324,24 +330,62 @@
       </div>`;
   }
 
+  // 料理の使用回数を集計（全記録から料理名ごとにカウント）
+  function foodUsageCounts() {
+    const counts = {};
+    Object.values(State.data.logs).forEach((l) => {
+      if (!l.meals) return;
+      Object.values(l.meals).forEach((items) => (items || []).forEach((it) => {
+        counts[it.name] = (counts[it.name] || 0) + 1;
+      }));
+    });
+    return counts;
+  }
+  // 候補一覧 = 内蔵DB + 写真から追加したカスタム料理
+  function allFoods() {
+    return FOODS.concat(State.data.customFoods || []);
+  }
+  // 写真で認識した料理を候補（カスタム料理）に登録（内蔵と重複しなければ）
+  function addCustomFood(it) {
+    const name = it.name || "料理";
+    if (FOODS.some((f) => f.name === name)) return;
+    if (!State.data.customFoods) State.data.customFoods = [];
+    const food = { name, cat: "AI", unit: "1食",
+      kcal: Math.round(it.kcal || 0), p: it.p || 0, f: it.f || 0, c: it.c || 0, fiber: it.fiber || 0, salt: it.salt || 0 };
+    const idx = State.data.customFoods.findIndex((f) => f.name === name);
+    if (idx >= 0) State.data.customFoods[idx] = food; else State.data.customFoods.push(food);
+  }
+
   // ---- 料理選択モーダル ---------------------------------------------------
   function openFoodPicker(slot) {
     const modal = makeModal(`${slot.icon} ${slot.label}に追加`);
     const body = $(".modal-body", modal);
     body.innerHTML = `
       <input type="search" id="fp-q" placeholder="料理名で検索（例: 鮭、サラダ）" autocomplete="off">
+      <p class="muted">よく使う料理が上に並びます。写真で解析した料理も候補に入ります。</p>
       <div id="fp-list" class="fp-list"></div>`;
     const listEl = $("#fp-list", body);
     const draw = (q) => {
-      const items = FOODS.filter((f) => !q || f.name.includes(q) || f.cat.includes(q));
-      listEl.innerHTML = items.map((f, i) => `
-        <button class="fp-item" data-i="${FOODS.indexOf(f)}">
-          <span class="fp-name">${f.name}<small>${f.unit}・${f.cat}</small></span>
+      const counts = foodUsageCounts();
+      const items = allFoods()
+        .map((f, i) => ({ f, i }))
+        .filter(({ f }) => !q || f.name.includes(q) || f.cat.includes(q))
+        // 使用回数の多い順 → 同数なら元の並び順
+        .sort((a, b) => (counts[b.f.name] || 0) - (counts[a.f.name] || 0) || a.i - b.i)
+        .map((x) => x.f);
+      listEl.innerHTML = items.map((f) => {
+        const n = counts[f.name] || 0;
+        return `<button class="fp-item" data-name="${encodeURIComponent(f.name)}">
+          <span class="fp-name">${f.name}${f.cat === "AI" ? ' <span class="badge info sm">写真</span>' : ""}
+            <small>${f.unit}・${f.cat}${n ? `・${n}回` : ""}</small></span>
           <span class="fp-k">${f.kcal}kcal</span>
-        </button>`).join("") || `<p class="muted">該当なし。「写真で解析」もお試しください。</p>`;
+        </button>`;
+      }).join("") || `<p class="muted">該当なし。「写真で解析」もお試しください。</p>`;
       $$(".fp-item", listEl).forEach((b) => {
         b.onclick = () => {
-          const f = FOODS[parseInt(b.dataset.i, 10)];
+          const name = decodeURIComponent(b.dataset.name);
+          const f = allFoods().find((x) => x.name === name);
+          if (!f) return;
           const qty = parseFloat(prompt(`「${f.name}」の量（${f.unit} を1として）`, "1"));
           if (!(qty > 0)) return;
           State.log(recordDate).meals[slot.key].push({ ...f, qty });
@@ -483,6 +527,7 @@
           kcal: it.kcal || 0, p: it.p || 0, f: it.f || 0, c: it.c || 0,
           fiber: it.fiber || 0, salt: it.salt || 0, qty: 1,
         });
+        addCustomFood(it); // 次回から「料理を選ぶ」候補にも表示
         State.save();
         b.textContent = "追加済み ✓"; b.disabled = true;
         render();
