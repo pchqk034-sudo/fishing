@@ -363,7 +363,13 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       }
       if (!s.provider) s.provider = "gemini";
     },
-    save() { localStorage.setItem(STORE_KEY, JSON.stringify(this.data)); },
+    save() {
+      // 空の記録（日付操作で生成される中身なしデータ）は保存しない
+      Object.keys(this.data.logs).forEach((k) => {
+        if (!dayHasContent(this.data.logs[k])) delete this.data.logs[k];
+      });
+      localStorage.setItem(STORE_KEY, JSON.stringify(this.data));
+    },
     log(date) {
       if (!this.data.logs[date]) {
         this.data.logs[date] = {
@@ -442,6 +448,15 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       Object.keys(all).forEach((k) => (all[k] += t[k]));
     });
     return { slots, all };
+  }
+  // その日に実質的な入力があるか（食事・歩数・運動・体重のいずれか）
+  function dayHasContent(l) {
+    if (!l) return false;
+    if (dayTotals(l).all.kcal > 0) return true;
+    const a = l.activity || {};
+    if ((a.steps || 0) > 0) return true;
+    if ((a.exercises || []).length > 0) return true;
+    return l.weight != null;
   }
 
   // ---- ナビゲーション -----------------------------------------------------
@@ -594,9 +609,16 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         </div>
 
         <button class="btn primary block" id="rec-save">この日の記録を保存</button>
+        ${State.data.logs[recordDate] ? `<button class="btn danger block" id="rec-del">この日の記録を削除</button>` : ""}
       </section>`;
 
     $("#rec-date").onchange = (e) => { recordDate = e.target.value; render(); };
+    const recDel = $("#rec-del");
+    if (recDel) recDel.onclick = () => {
+      if (confirm(`${recordDate} の記録を削除します。よろしいですか？`)) {
+        delete State.data.logs[recordDate]; State.save(); render();
+      }
+    };
     const recToday = $("#rec-today");
     if (recToday) recToday.onclick = () => { recordDate = todayStr(); render(); };
     MEAL_SLOTS.forEach((s) => {
@@ -1136,7 +1158,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       let br = 0, lu = 0, di = 0, sn = 0, burn = 0, wSum = 0, wN = 0, dN = 0;
       keys.forEach((k) => {
         const l = logs[k];
-        if (!l) return;
+        if (!l || !dayHasContent(l)) return; // 空の記録は集計しない
         dN++;
         const t = dayTotals(l);
         br += t.slots.breakfast.kcal; lu += t.slots.lunch.kcal;
@@ -1390,8 +1412,10 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         <div class="row wrap">
           <button class="btn" id="set-export">JSONで書き出し</button>
           <label class="btn">JSONを読み込み<input type="file" id="set-import" accept="application/json" hidden></label>
+          <button class="btn" id="set-clean">空の記録を掃除</button>
           <button class="btn danger" id="set-reset">全データを消去</button>
         </div>
+        <p class="muted">「空の記録を掃除」は、食事・歩数・運動・体重のいずれも入っていない日（日付操作で自動生成された空データ）をまとめて削除します。</p>
       </section>`;
     const applyChoice = (k) => {
       const c = AI_CHOICES[k];
@@ -1433,6 +1457,14 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         catch (_) { alert("読み込みに失敗しました。"); }
       };
       r.readAsText(f);
+    };
+    $("#set-clean").onclick = () => {
+      const empties = Object.keys(State.data.logs).filter((k) => !dayHasContent(State.data.logs[k]));
+      if (!empties.length) { alert("空の記録はありませんでした。"); return; }
+      if (confirm(`空の記録 ${empties.length}日分（例: ${empties.slice(0, 3).join(", ")}${empties.length > 3 ? " …" : ""}）を削除します。よろしいですか？`)) {
+        empties.forEach((k) => delete State.data.logs[k]);
+        State.save(); alert(`${empties.length}日分の空データを削除しました。`); renderSettings(view);
+      }
     };
     $("#set-reset").onclick = () => {
       if (confirm("すべての記録を消去します。よろしいですか？")) {
