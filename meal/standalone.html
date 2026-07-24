@@ -667,10 +667,11 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
 {"items":[{"name":"料理名","kcal":整数,"p":たんぱく質g,"f":脂質g,"c":炭水化物g,"fiber":食物繊維g,"salt":食塩相当量g,"ingredients":["主な食材",...]}]}
 写真に写る料理ごとに1食分の推定値を入れてください。`;
     const prompt = `この料理写真を管理栄養士として分析してください。${schemaHint}`;
+    const model = State.data.settings.model || "claude-opus-4-8";
     try {
       const items = provider === "gemini"
         ? await callGemini(key, media, b64, prompt)
-        : await callAnthropic(key, media, b64, prompt);
+        : await callAnthropic(key, media, b64, prompt, model);
       showPhotoResult(items, slot, modal, statusEl, resultEl);
     } catch (e) {
       statusEl.innerHTML = `<p class="warn-box">解析に失敗しました: ${e.message}<br>「料理を選ぶ」から手動で追加してください。</p>`;
@@ -681,7 +682,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     return parsed.items || [];
   }
   // Anthropic Claude で解析（ブラウザ直接呼び出し）
-  async function callAnthropic(key, media, b64, prompt) {
+  async function callAnthropic(key, media, b64, prompt, model) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -691,7 +692,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         "anthropic-dangerous-direct-browser-access": "true",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-8",
+        model: model || "claude-opus-4-8",
         max_tokens: 1024,
         messages: [{
           role: "user",
@@ -1135,15 +1136,33 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
   // ==========================================================================
   //  設定
   // ==========================================================================
+  // AIサービスの選択肢定義（1つのドロップダウンで3択）
+  const AI_CHOICES = {
+    gemini: {
+      label: "Google Gemini（無料）", provider: "gemini", model: null,
+      ph: "AIza...", link: "https://aistudio.google.com/app/apikey", linkName: "Google AI Studio",
+      note: "無料枠内なら課金なしで使えます（1日あたりの回数制限あり）。まずはこれがおすすめ。",
+    },
+    "claude-opus-4-8": {
+      label: "Claude 高精度（Opus・有料）", provider: "anthropic", model: "claude-opus-4-8",
+      ph: "sk-ant-...", link: "https://console.anthropic.com/settings/keys", linkName: "Anthropic Console",
+      note: "推定精度は高め。料金の目安は写真1枚あたり約¥3〜5（従量課金・残高登録が必要）。",
+    },
+    "claude-haiku-4-5": {
+      label: "Claude 低コスト（Haiku・有料）", provider: "anthropic", model: "claude-haiku-4-5",
+      ph: "sk-ant-...", link: "https://console.anthropic.com/settings/keys", linkName: "Anthropic Console",
+      note: "精度はやや控えめだが安価。料金の目安は写真1枚あたり約¥1弱（従量課金・残高登録が必要）。",
+    },
+  };
+  function currentAiKey(s) {
+    if ((s.provider || "gemini") === "gemini") return "gemini";
+    return s.model || "claude-opus-4-8";
+  }
   function renderSettings(view) {
     const s = State.data.settings;
-    const provider = s.provider || "anthropic";
+    const aiKey = currentAiKey(s);
+    const info = AI_CHOICES[aiKey];
     const dayCount = Object.keys(State.data.logs).filter((k) => dayTotals(State.log(k)).all.kcal > 0).length;
-    const info = provider === "gemini"
-      ? { name: "Google Gemini（無料枠あり）", ph: "AIza...", link: "https://aistudio.google.com/app/apikey", linkName: "Google AI Studio",
-          note: "無料枠内なら課金なしで使えます（1日あたりの回数制限あり）。" }
-      : { name: "Anthropic Claude（有料）", ph: "sk-ant-...", link: "https://console.anthropic.com/settings/keys", linkName: "Anthropic Console",
-          note: "従量課金です。残高（クレジット）の登録が必要です。" };
     view.innerHTML = `
       <section class="card">
         <h2>設定</h2>
@@ -1151,16 +1170,15 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         <p class="muted">料理写真からカロリー・食材・栄養素を自動推定します。APIキーはこの端末のブラウザ内（localStorage）にのみ保存され、
           外部へ送られるのは解析時に選んだAIサービスへの通信だけです。</p>
         <label class="block">使うAIサービス
-          <select id="set-provider">
-            <option value="gemini" ${provider === "gemini" ? "selected" : ""}>Google Gemini（無料枠あり）</option>
-            <option value="anthropic" ${provider === "anthropic" ? "selected" : ""}>Anthropic Claude（有料）</option>
+          <select id="set-ai">
+            ${Object.entries(AI_CHOICES).map(([k, v]) => `<option value="${k}" ${aiKey === k ? "selected" : ""}>${v.label}</option>`).join("")}
           </select>
         </label>
-        <label class="block">${info.name} のAPIキー
+        <label class="block">APIキー
           <input type="password" id="set-key" value="${s.apiKey || ""}" placeholder="${info.ph}">
         </label>
-        <button class="btn primary" id="set-save">キーを保存</button>
-        <p class="muted">${info.note} キーは <a href="${info.link}" target="_blank" rel="noopener">${info.linkName}</a> で取得できます。
+        <button class="btn primary" id="set-save">保存する</button>
+        <p class="muted">${info.note}<br>キーは <a href="${info.link}" target="_blank" rel="noopener">${info.linkName}</a> で取得できます。
           未設定でも手動記録・分析・グラフはすべて利用できます。</p>
       </section>
 
@@ -1173,12 +1191,17 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
           <button class="btn danger" id="set-reset">全データを消去</button>
         </div>
       </section>`;
-    $("#set-provider").onchange = (e) => {
-      State.data.settings.provider = e.target.value;
-      State.save(); renderSettings(view); // ラベル・リンクを切り替え
+    const applyChoice = (k) => {
+      const c = AI_CHOICES[k];
+      State.data.settings.provider = c.provider;
+      State.data.settings.model = c.model;
+    };
+    $("#set-ai").onchange = (e) => {
+      applyChoice(e.target.value);
+      State.save(); renderSettings(view); // 説明・プレースホルダを切り替え
     };
     $("#set-save").onclick = () => {
-      State.data.settings.provider = $("#set-provider").value;
+      applyChoice($("#set-ai").value);
       State.data.settings.apiKey = $("#set-key").value.trim();
       State.save(); alert("保存しました。");
     };
