@@ -229,6 +229,7 @@
 
   // ---- 記録する（当日の食事・活動） --------------------------------------
   let recordDate = todayStr();
+  let dashDate = todayStr();
   function renderRecord(view) {
     const p = State.data.profile;
     const log = State.log(recordDate);
@@ -490,7 +491,8 @@
   // ==========================================================================
   function renderDashboard(view) {
     const p = State.data.profile;
-    const date = todayStr();
+    const date = dashDate;
+    const isToday = date === todayStr();
     const log = State.log(date);
     const totals = dayTotals(log);
     const burned = Metrics.burned(p, log.activity);
@@ -506,8 +508,12 @@
     view.innerHTML = `
       <section class="card">
         <div class="row between wrap">
-          <h2>今日の分析</h2>
+          <h2>${isToday ? "今日" : "この日"}の分析</h2>
           <span class="badge ${cat.tone}">BMI ${fmt(bmi, 1)}・${cat.label}</span>
+        </div>
+        <div class="row wrap" style="gap:8px;margin:6px 0 12px">
+          <input type="date" id="dash-date" value="${date}" max="${todayStr()}">
+          ${isToday ? "" : `<button class="btn sm" id="dash-today">今日に戻る</button>`}
         </div>
 
         <div class="kpi-grid">
@@ -542,6 +548,9 @@
         <div class="row between"><h3>食事バランス(PFC)</h3></div>
         ${renderPFC(totals.all)}
       </section>`;
+    $("#dash-date").onchange = (e) => { dashDate = e.target.value; renderDashboard(view); };
+    const backBtn = $("#dash-today");
+    if (backBtn) backBtn.onclick = () => { dashDate = todayStr(); renderDashboard(view); };
   }
 
   function renderBalanceBar(intake, burned, target) {
@@ -925,6 +934,17 @@
       </section>
 
       <section class="card">
+        <h3>📲 iPhoneヘルスケアの歩数を取り込む</h3>
+        <p class="muted">SafariはiPhoneのヘルスケアを直接読めないため、「ショートカット」アプリで橋渡しします。
+          下のURLを歩数付きで開くと、その日の歩数を自動記録します（末尾の数字が歩数）。</p>
+        <p class="urlbox" id="hk-url">${location.origin}${location.pathname}?steps=8000</p>
+        <button class="btn sm" id="hk-copy">連携用URLの雛形をコピー</button>
+        <p class="muted">ショートカットの作り方: ①「ヘルスケアサンプルを検索」で歩数・当日・合計を取得 →
+          ②「URLを開く」で <code>${location.origin}${location.pathname}?steps=</code> の後ろに①の結果を付ける。
+          自動化(オートメーション)で毎晩実行すれば、開くだけで歩数が入ります。</p>
+      </section>
+
+      <section class="card">
         <h3>データ管理</h3>
         <p class="muted">記録済みの日数: <b>${dayCount}日</b></p>
         <div class="row wrap">
@@ -953,6 +973,11 @@
       applyChoice($("#set-ai").value);
       saveKeys();
       State.save(); alert("保存しました。選択中のサービスとキーで解析します。");
+    };
+    $("#hk-copy").onclick = () => {
+      const url = `${location.origin}${location.pathname}?steps=`;
+      const done = () => alert(`コピーしました:\n${url}[歩数]\n\n末尾に歩数を付けて開くと記録されます。`);
+      if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, done); else done();
     };
     $("#set-export").onclick = () => {
       const blob = new Blob([JSON.stringify(State.data, null, 2)], { type: "application/json" });
@@ -986,8 +1011,34 @@
     return el;
   }
 
+  // ---- URLパラメータからの歩数取り込み（iPhoneショートカット連携） --------
+  // 例: .../meal/?steps=8000&date=2026-07-24  で開くと、その日の歩数を自動記録
+  function importFromURL() {
+    const q = new URLSearchParams(location.search);
+    const steps = parseInt(q.get("steps"), 10);
+    if (!(steps >= 0)) return null;
+    const dParam = q.get("date") || "";
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(dParam) ? dParam : todayStr();
+    const l = State.log(date);
+    l.activity.steps = steps;
+    // 体重も一緒に渡された場合は記録（任意）
+    const w = parseFloat(q.get("weight"));
+    if (w > 0) { l.weight = w; if (date === todayStr() && State.data.profile) State.data.profile.weight = w; }
+    State.save();
+    // クエリを消してリロード時の二重取り込みを防ぐ
+    if (history.replaceState) history.replaceState(null, "", location.pathname + location.hash);
+    return { steps, date, weight: w > 0 ? w : null };
+  }
+
   // ---- 起動 ---------------------------------------------------------------
   State.load();
+  const imported = importFromURL();
+  if (imported) { dashDate = imported.date; Nav.current = "dashboard"; }
   render();
+  if (imported) {
+    setTimeout(() => alert(
+      `ヘルスケアの歩数 ${imported.steps.toLocaleString("ja-JP")}歩 を ${imported.date} に記録しました。` +
+      (imported.weight ? `\n体重 ${imported.weight}kg も記録しました。` : "")), 100);
+  }
   window.addEventListener("resize", () => { if (Nav.current === "trend") drawChart(); });
 })();
