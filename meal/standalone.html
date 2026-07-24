@@ -314,6 +314,15 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       if (!this.data) this.data = { profile: null, logs: {}, settings: {} };
       if (!this.data.logs) this.data.logs = {};
       if (!this.data.settings) this.data.settings = {};
+      // キーはサービスごとに保持。旧形式(apiKey単一)があれば移行する。
+      const s = this.data.settings;
+      if (!s.keys) s.keys = { gemini: "", anthropic: "" };
+      if (s.apiKey) {
+        const prov = s.provider || "gemini";
+        if (!s.keys[prov]) s.keys[prov] = s.apiKey;
+        delete s.apiKey;
+      }
+      if (!s.provider) s.provider = "gemini";
     },
     save() { localStorage.setItem(STORE_KEY, JSON.stringify(this.data)); },
     log(date) {
@@ -628,11 +637,18 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     draw("");
   }
 
+  // 現在選択中サービスのAPIキーを返す
+  function activeKey() {
+    const s = State.data.settings;
+    const prov = s.provider || "gemini";
+    return (s.keys || {})[prov] || "";
+  }
+
   // ---- 写真AI解析モーダル -------------------------------------------------
   function openPhotoPicker(slot) {
     const modal = makeModal(`📷 ${slot.label}を写真で解析`);
     const body = $(".modal-body", modal);
-    const hasKey = !!State.data.settings.apiKey;
+    const hasKey = !!activeKey();
     body.innerHTML = `
       <p class="muted">料理の写真から、料理名・カロリー・食材・栄養素をAIが推定します。</p>
       <label class="filedrop"><input type="file" id="ph-file" accept="image/*" capture="environment" hidden>
@@ -656,9 +672,9 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
   async function analyzePhoto(dataUrl, slot, modal) {
     const statusEl = $("#ph-status", modal);
     const resultEl = $("#ph-result", modal);
-    const key = State.data.settings.apiKey;
-    const provider = State.data.settings.provider || "anthropic";
-    if (!key) { statusEl.innerHTML = `<p class="muted">APIキー未設定のため解析できません。</p>`; return; }
+    const provider = State.data.settings.provider || "gemini";
+    const key = activeKey();
+    if (!key) { statusEl.innerHTML = `<p class="muted">選択中のサービスのAPIキーが未設定です。設定画面で登録してください。</p>`; return; }
     statusEl.innerHTML = `<p class="loading">🤖 AIが解析中…（数秒かかります）</p>`;
     resultEl.innerHTML = "";
     const [meta, b64] = dataUrl.split(",");
@@ -1162,6 +1178,8 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     const s = State.data.settings;
     const aiKey = currentAiKey(s);
     const info = AI_CHOICES[aiKey];
+    const keys = s.keys || { gemini: "", anthropic: "" };
+    const has = (p) => (keys[p] ? "✅登録済み" : "未登録");
     const dayCount = Object.keys(State.data.logs).filter((k) => dayTotals(State.log(k)).all.kcal > 0).length;
     view.innerHTML = `
       <section class="card">
@@ -1169,17 +1187,26 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         <h3>写真AI解析（任意）</h3>
         <p class="muted">料理写真からカロリー・食材・栄養素を自動推定します。APIキーはこの端末のブラウザ内（localStorage）にのみ保存され、
           外部へ送られるのは解析時に選んだAIサービスへの通信だけです。</p>
-        <label class="block">使うAIサービス
+
+        <label class="block">使うAIサービス（切り替えると対応キーを自動使用）
           <select id="set-ai">
             ${Object.entries(AI_CHOICES).map(([k, v]) => `<option value="${k}" ${aiKey === k ? "selected" : ""}>${v.label}</option>`).join("")}
           </select>
         </label>
-        <label class="block">APIキー
-          <input type="password" id="set-key" value="${s.apiKey || ""}" placeholder="${info.ph}">
+        <p class="muted">現在: <b>${info.label}</b> — ${info.note}</p>
+
+        <h4 class="mt">APIキー（両方まとめて登録しておけます）</h4>
+        <label class="block">Google Gemini のキー <span class="badge ${keys.gemini ? "good" : "warn"} sm">${has("gemini")}</span>
+          <input type="password" id="key-gemini" value="${keys.gemini || ""}" placeholder="AIza...">
         </label>
+        <p class="muted"><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a> で無料取得</p>
+        <label class="block">Anthropic Claude のキー <span class="badge ${keys.anthropic ? "good" : "warn"} sm">${has("anthropic")}</span>
+          <input type="password" id="key-anthropic" value="${keys.anthropic || ""}" placeholder="sk-ant-...">
+        </label>
+        <p class="muted"><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a> で取得（高精度Opus / 低コストHaiku 共通）</p>
+
         <button class="btn primary" id="set-save">保存する</button>
-        <p class="muted">${info.note}<br>キーは <a href="${info.link}" target="_blank" rel="noopener">${info.linkName}</a> で取得できます。
-          未設定でも手動記録・分析・グラフはすべて利用できます。</p>
+        <p class="muted">未設定でも手動記録・分析・グラフはすべて利用できます。</p>
       </section>
 
       <section class="card">
@@ -1196,14 +1223,21 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       State.data.settings.provider = c.provider;
       State.data.settings.model = c.model;
     };
+    const saveKeys = () => {
+      State.data.settings.keys = {
+        gemini: $("#key-gemini").value.trim(),
+        anthropic: $("#key-anthropic").value.trim(),
+      };
+    };
     $("#set-ai").onchange = (e) => {
-      applyChoice(e.target.value);
-      State.save(); renderSettings(view); // 説明・プレースホルダを切り替え
+      saveKeys();                 // 入力中のキーを失わない
+      applyChoice(e.target.value); // 対応キーへ自動で切り替え
+      State.save(); renderSettings(view);
     };
     $("#set-save").onclick = () => {
       applyChoice($("#set-ai").value);
-      State.data.settings.apiKey = $("#set-key").value.trim();
-      State.save(); alert("保存しました。");
+      saveKeys();
+      State.save(); alert("保存しました。選択中のサービスとキーで解析します。");
     };
     $("#set-export").onclick = () => {
       const blob = new Blob([JSON.stringify(State.data, null, 2)], { type: "application/json" });
