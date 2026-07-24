@@ -440,26 +440,30 @@
     const text = (json.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
     return extractItems(text);
   }
-  // Google Gemini で解析（無料枠あり）
+  // Google Gemini で解析（無料枠あり）。モデル終了に備え候補を順に試す。
   async function callGemini(key, media, b64, prompt) {
-    const model = "gemini-2.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [
-          { inline_data: { mime_type: media, data: b64 } },
-          { text: prompt },
-        ] }],
-        generationConfig: { responseMimeType: "application/json" },
-      }),
+    const models = State.data.settings.geminiModel
+      ? [State.data.settings.geminiModel]
+      : ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+    const body = JSON.stringify({
+      contents: [{ parts: [
+        { inline_data: { mime_type: media, data: b64 } },
+        { text: prompt },
+      ] }],
+      generationConfig: { responseMimeType: "application/json" },
     });
-    if (!res.ok) throw new Error(`Geminiエラー ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    const json = await res.json();
-    const text = ((json.candidates || [])[0]?.content?.parts || []).map((p) => p.text || "").join("");
-    if (!text) throw new Error("応答が空でした（無料枠の上限や画像内容をご確認ください）");
-    return extractItems(text);
+    let lastErr = null;
+    for (const model of models) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+      const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body });
+      if (res.status === 404) { lastErr = `モデル ${model} は利用不可`; continue; } // 次の候補へ
+      if (!res.ok) throw new Error(`Geminiエラー ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      const json = await res.json();
+      const text = ((json.candidates || [])[0]?.content?.parts || []).map((p) => p.text || "").join("");
+      if (!text) throw new Error("応答が空でした（無料枠の上限や画像内容をご確認ください）");
+      return extractItems(text);
+    }
+    throw new Error(`利用可能なGeminiモデルが見つかりませんでした（${lastErr || "不明"}）`);
   }
   function showPhotoResult(items, slot, modal, statusEl, resultEl) {
     if (!items.length) { statusEl.innerHTML = `<p class="muted">料理を検出できませんでした。</p>`; return; }
