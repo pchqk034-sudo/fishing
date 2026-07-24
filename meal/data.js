@@ -61,6 +61,28 @@ const FOODS = [
   { name: "ポテトチップス",     cat: "間食", unit: "小袋 30g", kcal: 166, p: 1.4, f: 10.5, c: 16.5, fiber: 1.3, salt: 0.3 },
   { name: "缶ビール",           cat: "飲料", unit: "350ml", kcal: 140, p: 1.1, f: 0.0, c: 10.9, fiber: 0.0, salt: 0.0 },
   { name: "日本酒",             cat: "飲料", unit: "1合 180ml", kcal: 185, p: 0.7, f: 0.0, c: 8.8, fiber: 0.0, salt: 0.0 },
+
+  // --- プロテイン・高たんぱく ---
+  { name: "プロテイン(水割り)",     cat: "プロテイン", unit: "1杯(粉30g)", kcal: 120, p: 24.0, f: 1.8, c: 2.5, fiber: 0.5, salt: 0.2 },
+  { name: "プロテイン(牛乳割り)",   cat: "プロテイン", unit: "1杯(粉30g+牛乳200ml)", kcal: 250, p: 30.0, f: 9.0, c: 14.0, fiber: 0.5, salt: 0.4 },
+  { name: "プロテインバー",         cat: "プロテイン", unit: "1本", kcal: 200, p: 15.0, f: 8.5, c: 20.0, fiber: 3.0, salt: 0.3 },
+  { name: "サラダチキン",           cat: "主菜", unit: "1個 110g", kcal: 114, p: 24.5, f: 1.5, c: 1.0, fiber: 0.0, salt: 1.1 },
+  { name: "ゆで卵",                 cat: "主菜", unit: "1個", kcal: 68, p: 6.2, f: 4.7, c: 0.2, fiber: 0.0, salt: 0.2 },
+  { name: "冷しゃぶサラダ",         cat: "主菜", unit: "1人前", kcal: 320, p: 22.0, f: 22.0, c: 9.0, fiber: 3.0, salt: 1.8 },
+  { name: "ギリシャヨーグルト",     cat: "乳製品", unit: "100g", kcal: 59, p: 10.0, f: 0.4, c: 4.0, fiber: 0.0, salt: 0.1 },
+  { name: "ブロッコリー",           cat: "副菜", unit: "1皿 80g", kcal: 30, p: 3.6, f: 0.4, c: 4.1, fiber: 3.7, salt: 0.0 },
+
+  // --- 麺・丼(よく食べるもの) ---
+  { name: "卵かけごはん",           cat: "主食", unit: "1杯", kcal: 330, p: 10.5, f: 6.0, c: 56.0, fiber: 2.3, salt: 1.0 },
+  { name: "釜玉うどん",             cat: "主食", unit: "1杯", kcal: 430, p: 15.0, f: 8.0, c: 76.0, fiber: 3.0, salt: 2.5 },
+  { name: "釜玉そば",               cat: "主食", unit: "1杯", kcal: 400, p: 16.0, f: 8.0, c: 66.0, fiber: 4.0, salt: 2.3 },
+  { name: "納豆卵うどん",           cat: "主食", unit: "1杯", kcal: 470, p: 20.0, f: 11.0, c: 77.0, fiber: 5.0, salt: 2.6 },
+  { name: "納豆卵そば",             cat: "主食", unit: "1杯", kcal: 440, p: 21.0, f: 11.0, c: 66.0, fiber: 6.0, salt: 2.4 },
+  { name: "中華そば(醤油)",         cat: "主食", unit: "1杯", kcal: 440, p: 18.0, f: 10.0, c: 66.0, fiber: 3.0, salt: 5.5 },
+  { name: "味噌ラーメン",           cat: "主食", unit: "1杯", kcal: 550, p: 22.0, f: 17.0, c: 75.0, fiber: 4.0, salt: 6.5 },
+  { name: "豚骨ラーメン",           cat: "主食", unit: "1杯", kcal: 500, p: 20.0, f: 18.0, c: 66.0, fiber: 3.0, salt: 6.0 },
+  { name: "家系ラーメン",           cat: "主食", unit: "1杯", kcal: 700, p: 28.0, f: 28.0, c: 80.0, fiber: 3.0, salt: 7.0 },
+  { name: "つけ麺",                 cat: "主食", unit: "1人前", kcal: 630, p: 26.0, f: 14.0, c: 100.0, fiber: 4.0, salt: 6.5 },
 ];
 
 // 運動MET値: 単発の運動を「運動強度」として分類（消費kcal = MET × 体重kg × 時間h × 1.05）
