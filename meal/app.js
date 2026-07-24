@@ -1013,12 +1013,22 @@
 
   // ---- URLパラメータからの歩数取り込み（iPhoneショートカット連携） --------
   // 例: .../meal/?steps=8000&date=2026-07-24  で開くと、その日の歩数を自動記録
+  // 各種の日付表記を YYYY-MM-DD に正規化（ショートカットの形式差を吸収）
+  function normalizeDate(s) {
+    if (!s) return null;
+    s = String(s).trim();
+    // 2026-07-20 / 2026/07/20 / 2026.07.20 / 2026年7月20日 / 2026-7-20 / 先頭に日付を含む日時
+    let m = s.match(/(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})/);
+    if (m) return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
+    const d = new Date(s); // 最後の手段（ローカル日付で解釈し時差ズレを防ぐ）
+    if (!isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return null;
+  }
   function importFromURL() {
     const q = new URLSearchParams(location.search);
     const steps = parseInt(q.get("steps"), 10);
     if (!(steps >= 0)) return null;
-    const dParam = q.get("date") || "";
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(dParam) ? dParam : todayStr();
+    const date = normalizeDate(q.get("date")) || todayStr();
     const l = State.log(date);
     l.activity.steps = steps;
     // 体重も一緒に渡された場合は記録（任意）
