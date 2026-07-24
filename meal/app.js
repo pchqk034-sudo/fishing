@@ -367,8 +367,8 @@
     const hasKey = !!activeKey();
     body.innerHTML = `
       <p class="muted">料理の写真から、料理名・カロリー・食材・栄養素をAIが推定します。</p>
-      <label class="filedrop"><input type="file" id="ph-file" accept="image/*" capture="environment" hidden>
-        <span>📸 写真を選ぶ / 撮影する</span></label>
+      <label class="filedrop"><input type="file" id="ph-file" accept="image/*" hidden>
+        <span>📷 ライブラリから選ぶ / 撮影する</span></label>
       <div id="ph-preview"></div>
       <div id="ph-status"></div>
       <div id="ph-result"></div>
