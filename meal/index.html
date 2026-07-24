@@ -137,7 +137,11 @@
     .seg-btn { border:none; background:transparent; color:var(--muted); padding:7px 14px; cursor:pointer; font-size:13px; font-weight:600; }
     .seg-btn.active { background:var(--brand); color:#fff; }
     .chart-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin:8px 0; }
+    .chart-wrap { touch-action:pan-y; }
     canvas { width:100%; display:block; margin-top:6px; }
+    .chart-tip { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 12px;
+      font-size:12.5px; color:var(--ink); margin:6px 0; min-height:20px; line-height:1.5; }
+    .chart-tip small { color:var(--muted); }
 
     /* chips */
     .chips { list-style:none; padding:0; display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 0; }
@@ -178,7 +182,7 @@
 </head>
 <body>
   <div id="app"></div>
-  <script src="data.js?v=12"></script>
-  <script src="app.js?v=12"></script>
+  <script src="data.js?v=13"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

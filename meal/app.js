@@ -746,7 +746,8 @@
   // ==========================================================================
   //  推移グラフ（日・週・月・年）
   // ==========================================================================
-  let trendPeriod = "week";
+  let trendPeriod = "day";
+  let chartGeom = null;
   function renderTrend(view) {
     view.innerHTML = `
       <section class="card">
@@ -763,11 +764,44 @@
           <span><i class="dot di"></i>晩</span><span><i class="dot sn"></i>間食</span>
           <span><i class="line burn"></i>消費</span><span><i class="line wt"></i>体重</span>
         </div>
-        <canvas id="chart" height="320"></canvas>
+        <div id="chart-tip" class="chart-tip">グラフをタッチすると、その日の詳細が表示されます</div>
+        <div class="chart-wrap"><canvas id="chart" height="320"></canvas></div>
         <div id="chart-note" class="muted"></div>
       </section>`;
     $$(".seg-btn").forEach((b) => (b.onclick = () => { trendPeriod = b.dataset.p; renderTrend(view); }));
     drawChart();
+    attachChartInteraction();
+  }
+
+  // 選択日の詳細を上部のバーに表示
+  function showTip(idx) {
+    const tip = $("#chart-tip"); if (!tip || !chartGeom) return;
+    if (idx == null) { tip.textContent = "グラフをタッチすると、その日の詳細が表示されます"; return; }
+    const d = chartGeom.data[idx];
+    if (!d) return;
+    const total = d.br + d.lu + d.di + d.sn;
+    const w = d.weight != null ? `${fmt(d.weight, 1)}kg` : "—";
+    const avg = trendPeriod === "day" ? "" : " <small>(平均)</small>";
+    tip.innerHTML = `<b>${d.label}</b> ｜ 摂取 <b>${fmt(total)}</b>kcal `
+      + `<small>(朝${fmt(d.br)}/昼${fmt(d.lu)}/晩${fmt(d.di)}/間${fmt(d.sn)})</small>`
+      + ` ｜ 消費 <b>${fmt(d.burn)}</b>kcal ｜ 体重 ${w}${avg}`;
+  }
+
+  // タッチ/マウスで縦ライン＋詳細表示
+  function attachChartInteraction() {
+    const canvas = $("#chart"); if (!canvas) return;
+    const idxFromX = (clientX) => {
+      if (!chartGeom) return null;
+      const rect = canvas.getBoundingClientRect();
+      const idx = Math.round((clientX - rect.left - chartGeom.padL) / chartGeom.slotW - 0.5);
+      return Math.max(0, Math.min(chartGeom.data.length - 1, idx));
+    };
+    const handle = (clientX) => { const idx = idxFromX(clientX); if (idx == null) return; drawChart(idx); showTip(idx); };
+    // passive のままにして、縦方向のページスクロールは妨げない
+    canvas.addEventListener("touchstart", (e) => handle(e.touches[0].clientX), { passive: true });
+    canvas.addEventListener("touchmove", (e) => handle(e.touches[0].clientX), { passive: true });
+    canvas.addEventListener("mousedown", (e) => handle(e.clientX));
+    canvas.addEventListener("mousemove", (e) => { if (e.buttons) handle(e.clientX); });
   }
 
   function buildSeries() {
@@ -823,7 +857,7 @@
     return buckets;
   }
 
-  function drawChart() {
+  function drawChart(highlight) {
     const canvas = $("#chart");
     if (!canvas) return;
     const data = buildSeries();
@@ -845,6 +879,19 @@
     const wMin = weights.length ? Math.min(...weights) - 1 : 0;
     const wMax = weights.length ? Math.max(...weights) + 1 : 1;
 
+    const n = data.length;
+    const slotW = plotW / n;
+    const barW = Math.min(28, slotW * 0.55);
+    const colors = { br: "#f6c453", lu: "#67b26f", di: "#4a90d9", sn: "#c56cf0" };
+    const y0 = padT + plotH;
+
+    // 選択日のハイライト帯（棒より背面に描く）
+    if (highlight != null && data[highlight]) {
+      const cx = padL + slotW * (highlight + 0.5);
+      ctx.fillStyle = dark ? "rgba(224,86,79,0.16)" : "rgba(224,86,79,0.10)";
+      ctx.fillRect(cx - slotW / 2, padT, slotW, plotH);
+    }
+
     // グリッド + 左軸(kcal)
     ctx.strokeStyle = axis; ctx.fillStyle = text; ctx.font = "11px sans-serif"; ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
@@ -861,12 +908,6 @@
       }
     }
 
-    const n = data.length;
-    const slotW = plotW / n;
-    const barW = Math.min(28, slotW * 0.55);
-    const colors = { br: "#f6c453", lu: "#67b26f", di: "#4a90d9", sn: "#c56cf0" };
-    const y0 = padT + plotH;
-
     // 積み上げ棒(摂取)
     data.forEach((d, i) => {
       const cx = padL + slotW * (i + 0.5);
@@ -877,9 +918,13 @@
         ctx.fillRect(cx - barW / 2, y0 - acc - h, barW, h);
         acc += h;
       });
-      // x軸ラベル
-      ctx.fillStyle = text; ctx.textAlign = "center";
-      if (n <= 14 || i % Math.ceil(n / 12) === 0) ctx.fillText(d.label, cx, cssH - padB + 16);
+    });
+
+    // x軸ラベル（間引いて重ならないように・最後は必ず表示）
+    const step = Math.max(1, Math.ceil(n / 7));
+    ctx.fillStyle = text; ctx.textAlign = "center";
+    data.forEach((d, i) => {
+      if (i % step === 0 || i === n - 1) ctx.fillText(d.label, padL + slotW * (i + 0.5), cssH - padB + 16);
     });
 
     // 消費ライン
@@ -915,6 +960,29 @@
         ctx.fillStyle = "#2bb3a3"; ctx.beginPath(); ctx.arc(cx, y, 3, 0, 7); ctx.fill();
       });
     }
+
+    // 選択日の赤い縦ライン（最前面）＋各値のマーカー
+    if (highlight != null && data[highlight]) {
+      const d = data[highlight];
+      const cx = padL + slotW * (highlight + 0.5);
+      ctx.strokeStyle = "#e0564f"; ctx.lineWidth = 2; ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.moveTo(cx, padT); ctx.lineTo(cx, y0); ctx.stroke(); ctx.setLineDash([]);
+      // 消費マーカー
+      if (d.burn) {
+        const y = y0 - (d.burn / maxKcal) * plotH;
+        ctx.fillStyle = "#e0564f"; ctx.beginPath(); ctx.arc(cx, y, 4, 0, 7); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+      // 体重マーカー
+      if (d.weight != null && weights.length) {
+        const y = padT + (1 - (d.weight - wMin) / (wMax - wMin)) * plotH;
+        ctx.fillStyle = "#2bb3a3"; ctx.beginPath(); ctx.arc(cx, y, 4, 0, 7); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    }
+
+    // 交互作用用にジオメトリを保存
+    chartGeom = { data, padL, slotW };
 
     const filled = data.filter((d) => d.hasData).length;
     $("#chart-note").textContent = filled
