@@ -144,6 +144,23 @@ section{padding:30px 0 6px}
 .sec-head .dot{width:12px;height:12px;border-radius:50%;background:var(--rainbow);flex:none;align-self:center}
 .sec-head .note{font-size:.8rem;color:var(--ink-soft);font-weight:600}
 
+/* ============ GROUP PHOTO CTA ============ */
+.group-photo-cta{
+  display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--ink);
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow-sm);
+  transition:transform .14s,border-color .14s,box-shadow .14s;
+}
+.group-photo-cta:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:var(--shadow)}
+.group-photo-cta .gpc-ic{
+  flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-size:1.3rem;
+  background:var(--rainbow);
+}
+.group-photo-cta .gpc-txt{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.group-photo-cta .gpc-ttl{font-weight:800;font-size:.92rem}
+.group-photo-cta .gpc-sub{font-weight:600;font-size:.74rem;color:var(--ink-soft)}
+.group-photo-cta .gpc-go{flex:none;font-weight:900;font-size:.82rem;color:var(--accent)}
+
 /* ============ MEMBER CARDS ============ */
 .member-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .mcard{
@@ -184,6 +201,12 @@ section{padding:30px 0 6px}
 .fact .k{font-size:.66rem;color:var(--ink-soft);font-weight:800;letter-spacing:.06em}
 .fact .v{font-weight:800;font-size:.95rem}
 .mdetail p{margin:6px 0 0;color:var(--ink-soft);font-weight:600;font-size:.9rem}
+.photo-link{
+  display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-weight:800;font-size:.84rem;
+  color:var(--mc);text-decoration:none;background:var(--surface);border:1px solid var(--line);
+  padding:8px 12px;border-radius:12px;transition:transform .12s,border-color .12s;
+}
+.photo-link:hover{transform:translateY(-2px);border-color:var(--mc)}
 
 /* ============ COUNTDOWN ============ */
 .count-wrap{display:grid;grid-template-columns:1fr;gap:12px}
@@ -223,6 +246,27 @@ a.card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:va
   font-size:.62rem;font-weight:900;background:var(--surface-2);color:var(--ink-soft);
   border:1px dashed var(--line);padding:2px 7px;border-radius:999px;
 }
+
+/* ============ TOUR LIST ============ */
+.tour-list{display:flex;flex-direction:column;gap:10px}
+.tour-stop{
+  background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px;
+  box-shadow:var(--shadow-sm);
+}
+.tour-stop.today{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent),var(--shadow)}
+.tour-stop.past{opacity:.5}
+.tour-stop .ts-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.tour-stop .ts-city{font-weight:900;font-size:1rem}
+.tour-stop .ts-venue{font-size:.8rem;color:var(--ink-soft);font-weight:700}
+.tour-stop .ts-dates{display:flex;flex-wrap:wrap;gap:6px}
+.tour-date{
+  font-size:.78rem;font-weight:800;padding:5px 10px;border-radius:999px;
+  background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft);
+  font-variant-numeric:tabular-nums;
+}
+.tour-date.today{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tour-date.past{text-decoration:line-through}
+.tour-date .tdtag{font-weight:900}
 
 /* SNS icons */
 .sns-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
@@ -383,9 +427,9 @@ footer b{color:var(--ink)}
     </div>
     <div class="today-banner">
       <span class="spark">🎤</span>
-      <div class="lbl">TODAY'S LIVE</div>
-      <div class="big">札幌公演、今日開催！🎉</div>
-      <div class="sub">最高の夜になりますように。うちわ準備OK？ペンライトの電池は満タン？</div>
+      <div class="lbl">TODAY'S LIVE — SOLD OUT</div>
+      <div class="big">真駒内セキスイハイムアイスアリーナ（札幌）17:00開演</div>
+      <div class="sub">We're timelesz LIVE TOUR 2026 episode 2 MOMENTUM。最高の夜になりますように。うちわ準備OK？ペンライトの電池は満タン？</div>
     </div>
   </div>
 </header>
@@ -395,6 +439,7 @@ footer b{color:var(--ink)}
     <a href="#members">メンバー名鑑</a>
     <a href="#bday">誕生日</a>
     <a href="#news">ニュース</a>
+    <a href="#tour">ライブ日程</a>
     <a href="#sns">SNS</a>
     <a href="#oshi">推し診断</a>
     <a href="#penlight">ペンライト</a>
@@ -409,6 +454,14 @@ footer b{color:var(--ink)}
   <!-- MEMBERS -->
   <section id="members">
     <div class="sec-head"><span class="dot"></span><h2>メンバー名鑑</h2><span class="note">タップでプロフィールが開くよ</span></div>
+    <a class="group-photo-cta" href="https://ovtp.jp/timelesz/member" target="_blank" rel="noopener">
+      <span class="gpc-ic">📸</span>
+      <span class="gpc-txt">
+        <span class="gpc-ttl">全員集合ショット＆個人写真は公式サイトで</span>
+        <span class="gpc-sub">著作権の関係でこのページには埋め込めないので、公式のフォトページに直接リンクしています</span>
+      </span>
+      <span class="gpc-go">見る →</span>
+    </a>
     <div class="member-grid" id="memberGrid"></div>
   </section>
 
@@ -425,6 +478,13 @@ footer b{color:var(--ink)}
   <section id="news">
     <div class="sec-head"><span class="dot"></span><h2>ニュース＆トピック</h2><span class="note">公式リンク＋差し込み用サンプル</span></div>
     <div class="cards" id="newsCards"></div>
+  </section>
+
+  <!-- TOUR -->
+  <section id="tour">
+    <div class="sec-head"><span class="dot"></span><h2>ライブ日程</h2><span class="note">We're timelesz LIVE TOUR 2026 episode 2 MOMENTUM（全国8都市28公演）</span></div>
+    <div class="tour-list" id="tourList"></div>
+    <p class="note" style="margin-top:10px">出典：<a href="https://ovtp.jp/timelesz/live-stage" target="_blank" rel="noopener">Over The Top LIVE/STAGE</a>。最新情報・チケット情報は公式サイトでご確認ください。</p>
   </section>
 
   <!-- SNS -->
@@ -486,8 +546,8 @@ footer b{color:var(--ink)}
 
   <div class="disclaimer" style="margin:24px 0">
     ⚠️ これはファンが個人的に作った<b>非公式</b>ダッシュボードです。公式・所属事務所とは関係ありません。
-    メンバー情報は公開情報をもとにしていますが、最新の正確な情報は必ず公式サイト・公式SNSでご確認ください。
-    ニュースやライブ日程の一部は書き換え用のサンプルです。
+    メンバー情報・ニュース・ライブ日程は<b>2026年7月25日時点</b>で公開情報をもとに収集したもので、自動更新はされません。最新の正確な情報は必ず<a href="https://ovtp.jp/" target="_blank" rel="noopener">公式サイト（ovtp.jp）</a>・公式SNSでご確認ください。
+    メンバー写真は著作権保護のためこのページには掲載せず、公式サイトへのリンクのみ設置しています。
   </div>
 
 </main>
@@ -509,50 +569,66 @@ footer b{color:var(--ink)}
 /* ================= DATA ================= */
 const MEMBERS = [
   {id:"sato", name:"佐藤 勝利", kana:"さとう しょうり", initial:"勝", color:"var(--c-sato)", hex:"#FF3B5C", colorName:"赤",
-   birth:"1996-10-30", from:"東京都", origin:true,
+   birth:"1996-10-30", from:"東京都", origin:true, url:"https://ovtp.jp/timelesz/shori-sato",
    blurb:"Sexy Zone時代からのメインボーカル＆センター。透明感のある歌声と正統派アイドルの佇まいでグループの“顔”。"},
   {id:"kikuchi", name:"菊池 風磨", kana:"きくち ふうま", initial:"風", color:"var(--c-kikuchi)", hex:"#9B5DE5", colorName:"紫",
-   birth:"1995-03-07", from:"東京都", origin:true,
+   birth:"1995-03-07", from:"東京都", origin:true, url:"https://ovtp.jp/timelesz/fuma-kikuchi",
    blurb:"リーダー的存在でグループの舵取り役。トーク・バラエティ・作詞まで幅広く、timeleszの新体制を牽引。"},
   {id:"matsushima", name:"松島 聡", kana:"まつしま そう", initial:"聡", color:"var(--c-matsushima)", hex:"#22C39A", colorName:"緑",
-   birth:"1997-11-10", from:"静岡県", origin:true,
+   birth:"1997-11-27", from:"静岡県", origin:true, url:"https://ovtp.jp/timelesz/so-matsushima",
    blurb:"ダンスとムードメーカー担当。天然で愛されキャラ、笑顔がトレードマークのオリジナルメンバー。"},
   {id:"teranishi", name:"寺西 拓人", kana:"てらにし たくと", initial:"拓", color:"var(--c-teranishi)", hex:"#4CC9F0", colorName:"水色",
-   birth:"1994-12-31", from:"神奈川県", origin:false,
+   birth:"1994-12-31", from:"神奈川県", origin:false, url:"https://ovtp.jp/timelesz/takuto-teranishi",
    blurb:"タイプロ（timelesz project）加入の新メンバー。長いジュニア経験に裏打ちされた実力派で表現力が光る。",
    secret:"寺西担のあなたへ 💌\n\n何回「尊い」って言った日だろう——それくらい全力で推してきたのを、隣でずっと見てきました。\n長いジュニア時代を知っているからこそ、今のステージに立つ寺西くんを見る目に特別な重みがあるんだろうな、といつも思います。\n\n今日は札幌、心ゆくまで叫んで、目に焼き付けてきてね。\n帰ってきたら、今日の寺西くんの尊さを全部聞かせてください。\n\n— このダッシュボードを作った人より、応援を込めて。"},
   {id:"hara", name:"原 嘉孝", kana:"はら よしたか", initial:"嘉", color:"var(--c-hara)", hex:"#A7DB3C", colorName:"黄緑",
-   birth:"1995-09-25", from:"神奈川県", origin:false,
+   birth:"1995-09-25", from:"神奈川県", origin:false, url:"https://ovtp.jp/timelesz/yoshitaka-hara",
    blurb:"元関西ジャニーズJr.〜俳優を経てタイプロで加入。熱量とエンタメ力にあふれる新メンバー。"},
   {id:"hashimoto", name:"橋本 将生", kana:"はしもと まさき", initial:"将", color:"var(--c-hashimoto)", hex:"#FF8FB1", colorName:"ピンク",
-   birth:"1999-10-17", from:"神奈川県 茅ヶ崎市", origin:false,
+   birth:"1999-10-17", from:"神奈川県 茅ヶ崎市", origin:false, url:"https://ovtp.jp/timelesz/masaki-hashimoto",
    blurb:"タイプロ加入の新メンバー。爽やかなビジュアルとフレッシュさで人気急上昇。"},
   {id:"inomata", name:"猪俣 周杜", kana:"いのまた しゅうと", initial:"周", color:"var(--c-inomata)", hex:"#FFCB2D", colorName:"黄色",
-   birth:"2001-08-17", from:"茨城県", origin:false,
+   birth:"2001-08-17", from:"茨城県", origin:false, url:"https://ovtp.jp/timelesz/shuto-inomata",
    blurb:"タイプロ加入の最年少に近い新メンバー。ダンススキルとキレのあるパフォーマンスが武器。"},
   {id:"shinozuka", name:"篠塚 大輝", kana:"しのづか だいき", initial:"大", color:"var(--c-shinozuka)", hex:"#EDEDF2", colorName:"白",
-   birth:"2002-07-09", from:"—", origin:false, lite:true,
+   birth:"2002-07-09", from:"大阪府", origin:false, lite:true, url:"https://ovtp.jp/timelesz/taiki-shinozuka",
    blurb:"タイプロ加入の新メンバー。初々しさとポテンシャルでこれからの成長が楽しみな存在。",
    secret:"篠塚担のあなたへ 💌\n\n新体制のスタートから見守ってきた篠塚くんの一歩ずつの成長、隣で見ていてこっちまで嬉しくなります。\nまだまだこれからのポテンシャルを、誰よりも早く見つけて推してきたその目、素敵だと思う。\n\n今日は札幌、心ゆくまで叫んで、その成長を目に焼き付けてきてね。\n帰ってきたら、今日の篠塚くんの尊さを全部聞かせてください。\n\n— このダッシュボードを作った人より、応援を込めて。"},
 ];
 
-/* ニュース：★=実在の公式ソース、それ以外は差し込み用サンプル */
+/* ニュース：real=true は実在の公式ソースから確認済み。定期的に ovtp.jp/news で最新版に更新してね */
 const NEWS = [
-  {tag:"公式", real:true, title:"timelesz 新メンバー決定！ 新体制は8人編成に", src:"universal-music.co.jp",
-   url:"https://www.universal-music.co.jp/timelesz/news/2025-02-15/", date:"2025-02-15"},
-  {tag:"トピック", real:true, title:"新生timelesz、メンバーカラー発表（赤/紫/緑/水色/黄緑/ピンク/黄/白）", src:"ORICON NEWS",
-   url:"https://www.oricon.co.jp/news/2369289/full/", date:"2025-02"},
-  {tag:"ライブ", real:false, title:"（サンプル）札幌公演 開催 🎤 感想はセトリメモへ", src:"あなたの記録", url:"#setlist", date:"今日"},
-  {tag:"ニュース", real:false, title:"（サンプル）ここに最新ニュースの見出しを追加できます", src:"—", url:"#", date:"—"},
+  {tag:"リリース", real:true, title:"29th Single『消えない花火』2026.7.29 Release！ 今週リリース目前", src:"Over The Top",
+   url:"https://ovtp.jp/9116980", date:"2026-07"},
+  {tag:"ライブ", real:true, title:"『We're timelesz LIVE TOUR 2026 episode 2 MOMENTUM』 ツアー会場限定特典 決定！", src:"Over The Top",
+   url:"https://ovtp.jp/9116983", date:"2026-07"},
+  {tag:"TV", real:true, title:"『THE MUSIC DAY 2026』出演（7/4放送）", src:"Over The Top / X @OVTT_official",
+   url:"https://x.com/OVTT_official/status/2067049591430668500", date:"2026-07-04"},
+  {tag:"タイアップ", real:true, title:"『消えない花火』が長岡まつり大花火大会の音楽花火とコラボ", src:"tvfan",
+   url:"https://tvfan.kyodo.co.jp/music/news-music/1519150", date:"2026-07"},
+  {tag:"ニュース一覧", real:true, title:"最新ニュースをすべて見る（公式サイト NEWS）", src:"ovtp.jp/news",
+   url:"https://ovtp.jp/news", date:"随時更新"},
 ];
 
 const SNS = [
-  {t:"公式サイト", h:"universal-music.co.jp/timelesz", url:"https://www.universal-music.co.jp/timelesz/", bg:"var(--accent)", ic:"🌐"},
-  {t:"X (旧Twitter)", h:"公式アカウントを検索", url:"https://x.com/search?q=timelesz%20公式&f=user", bg:"#111", ic:"𝕏"},
-  {t:"Instagram", h:"公式アカウントを検索", url:"https://www.instagram.com/explore/tags/timelesz/", bg:"linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)", ic:"📷"},
-  {t:"YouTube", h:"公式チャンネルを検索", url:"https://www.youtube.com/results?search_query=timelesz+公式", bg:"#FF0000", ic:"▶"},
-  {t:"タイプロ (Netflix)", h:"timelesz project", url:"https://www.netflix.com/search?q=timelesz", bg:"#E50914", ic:"🎬"},
-  {t:"ハッシュタグ", h:"#timelesz #タイプロ", url:"https://x.com/search?q=%23timelesz&f=live", bg:"linear-gradient(45deg,#4CC9F0,#9B5DE5)", ic:"#"},
+  {t:"公式サイト", h:"ovtp.jp", url:"https://ovtp.jp/", bg:"var(--accent)", ic:"🌐"},
+  {t:"X (旧Twitter)", h:"@OVTT_official", url:"https://x.com/OVTT_official", bg:"#111", ic:"𝕏"},
+  {t:"Instagram", h:"@timelesz_official", url:"https://www.instagram.com/timelesz_official/", bg:"linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)", ic:"📷"},
+  {t:"YouTube", h:"@timelesz_official", url:"https://www.youtube.com/@timelesz_official", bg:"#FF0000", ic:"▶"},
+  {t:"TikTok", h:"@timelesz_overthetop", url:"https://www.tiktok.com/@timelesz_overthetop", bg:"#111", ic:"♪"},
+  {t:"ハッシュタグ", h:"#timelesz", url:"https://x.com/search?q=%23timelesz&f=live", bg:"linear-gradient(45deg,#4CC9F0,#9B5DE5)", ic:"#"},
+];
+
+/* We're timelesz LIVE TOUR 2026 episode 2 MOMENTUM（全国8都市28公演） */
+const TOUR_STOPS = [
+  {city:"愛知", venue:"Aichi Sky Expo", dates:["2026-05-16","2026-05-17","2026-05-17"]},
+  {city:"静岡", venue:"静岡エコパアリーナ", dates:["2026-05-30","2026-05-31","2026-05-31"]},
+  {city:"千葉", venue:"LaLa arena TOKYO-BAY", dates:["2026-06-12","2026-06-13","2026-06-13","2026-06-14","2026-06-14"]},
+  {city:"神奈川", venue:"横浜アリーナ", dates:["2026-06-30","2026-07-01","2026-07-01","2026-07-02","2026-07-02"]},
+  {city:"北海道", venue:"真駒内セキスイハイムアイスアリーナ", dates:["2026-07-25","2026-07-26","2026-07-26"]},
+  {city:"大阪", venue:"大阪城ホール", dates:["2026-07-31","2026-08-01","2026-08-01"]},
+  {city:"福岡", venue:"マリンメッセ福岡 A館", dates:["2026-08-15","2026-08-16","2026-08-16"]},
+  {city:"宮城", venue:"セキスイハイムスーパーアリーナ", dates:["2026-08-29","2026-08-30","2026-08-30"]},
 ];
 
 const LUCKY_MSGS = [
@@ -632,7 +708,8 @@ function openDetail(m, card){
       <div class="fact"><div class="k">次の誕生日</div><div class="v tnum">${fmtDate(next)}</div></div>
       <div class="fact"><div class="k">カウントダウン</div><div class="v tnum">${days===0?'🎂 今日!':'あと'+days+'日'}</div></div>
     </div>
-    <p>${m.blurb}</p>`;
+    <p>${m.blurb}</p>
+    <a class="photo-link" href="${m.url}" target="_blank" rel="noopener">📸 公式サイトで${m.name.split(" ")[1]}の写真を見る →</a>`;
   // insert after the row containing the card: place at end of grid for simplicity, but position after card visually
   card.insertAdjacentElement("afterend", drawer);
 }
@@ -676,6 +753,35 @@ function openDetail(m, card){
       </div>
       <span class="go">${n.url==='#'?'（ここに追加）':'ひらく →'}</span>`;
     wrap.appendChild(a);
+  });
+})();
+
+/* ================= RENDER: TOUR ================= */
+(function(){
+  const wrap=$("#tourList");
+  const now=new Date();
+  const todayMid=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const todayISO=`${todayMid.getFullYear()}-${pad2(todayMid.getMonth()+1)}-${pad2(todayMid.getDate())}`;
+  const wdChars="日月火水木金土";
+
+  TOUR_STOPS.forEach(stop=>{
+    const dates = stop.dates.map(d=>({iso:d, dt:new Date(d+"T00:00:00")}));
+    const hasToday = dates.some(d=>d.iso===todayISO);
+    const allPast = dates.every(d=>d.dt < todayMid) && !hasToday;
+    const row = el("div","tour-stop"+(hasToday?" today":"")+(allPast?" past":""));
+    const dateChips = dates.map(d=>{
+      const isToday = d.iso===todayISO;
+      const isPast = d.dt < todayMid;
+      const wd = wdChars[d.dt.getDay()];
+      return `<span class="tour-date${isToday?' today':''}${isPast&&!isToday?' past':''}">${d.dt.getMonth()+1}/${d.dt.getDate()}(${wd})${isToday?'<span class="tdtag"> ・今日</span>':''}</span>`;
+    }).join("");
+    row.innerHTML = `
+      <div class="ts-head">
+        <span class="ts-city">${hasToday?'🎤 ':''}${stop.city}</span>
+        <span class="ts-venue">${stop.venue}</span>
+      </div>
+      <div class="ts-dates">${dateChips}</div>`;
+    wrap.appendChild(row);
   });
 })();
 
