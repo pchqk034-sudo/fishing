@@ -280,6 +280,42 @@ a.card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:va
 .sns .t{font-weight:800;font-size:.9rem}
 .sns .h{font-size:.74rem;color:var(--ink-soft);font-weight:700}
 
+/* ============ X BUZZ HUB ============ */
+.buzz-live{
+  display:flex;align-items:center;gap:14px;text-decoration:none;color:#fff;
+  border-radius:var(--r);padding:16px 18px;margin-bottom:12px;box-shadow:var(--shadow);
+  background:linear-gradient(120deg,#111,#2b2438 60%,var(--accent));
+  position:relative;overflow:hidden;
+}
+.buzz-live::after{
+  content:"";position:absolute;inset:0;opacity:.4;pointer-events:none;
+  background:radial-gradient(circle at 85% 20%,color-mix(in srgb,var(--accent) 55%,transparent),transparent 60%);
+}
+.buzz-live .bl-ic{font-size:1.6rem;flex:none;position:relative}
+.buzz-live .bl-txt{flex:1;position:relative;min-width:0}
+.buzz-live .bl-lbl{font-size:.68rem;font-weight:900;letter-spacing:.12em;opacity:.85;text-transform:uppercase}
+.buzz-live .bl-ttl{font-weight:900;font-size:1.02rem;margin-top:2px}
+.buzz-live .bl-go{flex:none;font-weight:900;font-size:.82rem;position:relative;opacity:.95}
+
+.buzz-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.buzz-chip{
+  display:flex;flex-direction:column;gap:4px;text-decoration:none;color:var(--ink);
+  background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 14px;
+  box-shadow:var(--shadow-sm);transition:transform .12s,border-color .12s;
+}
+.buzz-chip:hover{transform:translateY(-2px);border-color:var(--accent)}
+.buzz-chip .bc-ic{font-size:1.15rem}
+.buzz-chip .bc-ttl{font-weight:800;font-size:.86rem}
+.buzz-chip .bc-sub{font-size:.72rem;color:var(--ink-soft);font-weight:600}
+
+.buzz-members{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:12px}
+.buzz-mchip{
+  text-decoration:none;text-align:center;font-weight:800;font-size:.76rem;color:#fff;
+  border-radius:12px;padding:9px 4px;box-shadow:var(--shadow-sm);transition:transform .12s;
+}
+.buzz-mchip.lite{color:#3a2f4a}
+.buzz-mchip:hover{transform:translateY(-2px)}
+
 /* ============ TOOLS (localStorage) ============ */
 .tools-grid{display:grid;grid-template-columns:1fr;gap:14px}
 @media(min-width:720px){.tools-grid{grid-template-columns:1fr 1fr}}
@@ -441,6 +477,7 @@ footer b{color:var(--ink)}
     <a href="#news">ニュース</a>
     <a href="#tour">ライブ日程</a>
     <a href="#sns">SNS</a>
+    <a href="#buzz">X検索</a>
     <a href="#oshi">推し診断</a>
     <a href="#penlight">ペンライト</a>
     <a href="#setlist">セトリメモ</a>
@@ -476,7 +513,7 @@ footer b{color:var(--ink)}
 
   <!-- NEWS -->
   <section id="news">
-    <div class="sec-head"><span class="dot"></span><h2>ニュース＆トピック</h2><span class="note">公式リンク＋差し込み用サンプル</span></div>
+    <div class="sec-head"><span class="dot"></span><h2>ニュース＆トピック</h2><span class="note">公式サイト(ovtp.jp)の実際の記事</span></div>
     <div class="cards" id="newsCards"></div>
   </section>
 
@@ -492,6 +529,17 @@ footer b{color:var(--ink)}
     <div class="sec-head"><span class="dot"></span><h2>SNS ＆ 公式リンク</h2></div>
     <div class="sns-grid" id="snsGrid"></div>
     <p class="note" style="margin-top:10px">※ アカウントは変更される場合があります。最新は公式サイトから確認してね。</p>
+  </section>
+
+  <!-- X BUZZ HUB -->
+  <section id="buzz">
+    <div class="sec-head"><span class="dot"></span><h2>Xでリアルタイム検索</h2><span class="note">タップで本物の最新投稿へ（このページには埋め込めないため）</span></div>
+    <a class="buzz-live" id="buzzLive" href="#" target="_blank" rel="noopener"></a>
+    <div class="buzz-grid" id="buzzGrid"></div>
+    <div class="buzz-members" id="buzzMembers"></div>
+    <p class="cert-hint" style="text-align:left;margin-top:12px">
+      💡 目撃情報は伝聞・不確かなものも多いです。本人やその場にいる方への配慮を忘れず、鵜呑みにしすぎず楽しんでね。
+    </p>
   </section>
 
   <!-- OSHI DIAGNOSIS / CERTIFICATE -->
@@ -793,6 +841,60 @@ function openDetail(m, card){
     a.href=s.url;a.target="_blank";a.rel="noopener";
     a.innerHTML=`<span class="ic" style="background:${s.bg}">${s.ic}</span><span><span class="t" style="display:block">${s.t}</span><span class="h">${s.h}</span></span>`;
     wrap.appendChild(a);
+  });
+})();
+
+/* ================= RENDER: X BUZZ HUB ================= */
+const BUZZ_SEARCHES = [
+  {ic:"🔥", ttl:"みんなの実況・感想", sub:"#timelesz の最新投稿", q:"#timelesz", f:"live"},
+  {ic:"🎫", ttl:"MOMENTUMツアー実況", sub:"#MOMENTUM セトリ・レポ", q:"timelesz #MOMENTUM", f:"live"},
+  {ic:"👀", ttl:"目撃情報", sub:"空港・お出かけなど", q:"タイムレス 目撃", f:"live"},
+  {ic:"📈", ttl:"話題の投稿", sub:"人気順で見るバズ post", q:"timelesz", f:"top"},
+  {ic:"🎥", ttl:"動画・切り抜き", sub:"パフォーマンス動画など", q:"timelesz 動画", f:"live"},
+  {ic:"🛍️", ttl:"グッズ・物販レポ", sub:"戦利品・購入報告", q:"timelesz 物販", f:"live"},
+];
+
+function xSearchUrl(q, f){
+  return `https://x.com/search?q=${encodeURIComponent(q)}&src=typed_query${f?'&f='+f:''}`;
+}
+
+(function(){
+  // "今夜の実況を見る" — 今日ツアーの都市があればそれを、なければ直近公演を使う
+  const now=new Date();
+  const todayMid=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const todayISO=`${todayMid.getFullYear()}-${pad2(todayMid.getMonth()+1)}-${pad2(todayMid.getDate())}`;
+  const todayStop = TOUR_STOPS.find(s=>s.dates.includes(todayISO));
+  const live = $("#buzzLive");
+  if(todayStop){
+    live.href = xSearchUrl(`timelesz ${todayStop.city}`, "live");
+    live.innerHTML = `
+      <span class="bl-ic">🎤</span>
+      <span class="bl-txt"><span class="bl-lbl">LIVE NOW</span><span class="bl-ttl">今夜の${todayStop.city}公演、実況を見る</span></span>
+      <span class="bl-go">開く →</span>`;
+  }else{
+    live.href = xSearchUrl("#timelesz", "live");
+    live.innerHTML = `
+      <span class="bl-ic">✨</span>
+      <span class="bl-txt"><span class="bl-lbl">LIVE SEARCH</span><span class="bl-ttl">#timelesz の最新投稿を見る</span></span>
+      <span class="bl-go">開く →</span>`;
+  }
+
+  const grid=$("#buzzGrid");
+  BUZZ_SEARCHES.forEach(b=>{
+    const a=el("a","buzz-chip");
+    a.href=xSearchUrl(b.q,b.f); a.target="_blank"; a.rel="noopener";
+    a.innerHTML=`<span class="bc-ic">${b.ic}</span><span class="bc-ttl">${b.ttl}</span><span class="bc-sub">${b.sub}</span>`;
+    grid.appendChild(a);
+  });
+
+  const mwrap=$("#buzzMembers");
+  MEMBERS.forEach(m=>{
+    const tag = m.name.replace(" ","");
+    const a=el("a","buzz-mchip"+(m.lite?" lite":""));
+    a.style.background=m.hex;
+    a.href=xSearchUrl(`#${tag}`,"live"); a.target="_blank"; a.rel="noopener";
+    a.textContent=`#${m.name.split(" ")[1]}`;
+    mwrap.appendChild(a);
   });
 })();
 
