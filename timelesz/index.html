@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>timelesz ファンダッシュボード</title>
+<meta name="description" content="timelesz（タイムレス）ファンのための非公式ダッシュボード。メンバー名鑑・誕生日カウントダウン・セトリメモ・予備ペンライトなど。">
+<style>
+/* ============ TOKENS ============ */
+:root{
+  /* メンバーカラー = このページのパレット（ペンライトの虹） */
+  --c-sato:#FF3B5C;       /* 佐藤勝利 / 赤 */
+  --c-kikuchi:#9B5DE5;    /* 菊池風磨 / 紫 */
+  --c-matsushima:#22C39A; /* 松島聡 / 緑 */
+  --c-teranishi:#4CC9F0;  /* 寺西拓人 / 水色 */
+  --c-hara:#A7DB3C;       /* 原嘉孝 / 黄緑 */
+  --c-hashimoto:#FF8FB1;  /* 橋本将生 / ピンク */
+  --c-inomata:#FFCB2D;    /* 猪俣周杜 / 黄色 */
+  --c-shinozuka:#EDEDF2;  /* 篠塚大輝 / 白 */
+
+  --rainbow:linear-gradient(90deg,
+    var(--c-sato),var(--c-hashimoto),var(--c-inomata),var(--c-hara),
+    var(--c-matsushima),var(--c-teranishi),var(--c-kikuchi));
+
+  /* ニュートラルは紫寄りに“選ぶ” */
+  --bg:#FBF7FF;
+  --surface:#FFFFFF;
+  --surface-2:#F5EEFC;
+  --ink:#241A33;
+  --ink-soft:#6B5E7E;
+  --line:#EADFF6;
+  --accent:#9B5DE5;
+  --shadow:0 10px 30px -12px rgba(80,40,120,.28);
+  --shadow-sm:0 4px 14px -8px rgba(80,40,120,.35);
+
+  --font:"Hiragino Maru Gothic ProN","ヒラギノ丸ゴ ProN W4","Hiragino Sans",
+         "Yu Gothic UI","YuGothic","Meiryo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+
+  --fs-hero:clamp(2rem,7.5vw,3.6rem);
+  --fs-h2:clamp(1.15rem,4.2vw,1.6rem);
+  --r:20px;
+  --maxw:1080px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#150F1E; --surface:#1F1729; --surface-2:#291E38;
+    --ink:#F4EEFC; --ink-soft:#B7A8CC; --line:#362945; --accent:#C79BFF;
+    --shadow:0 14px 34px -14px rgba(0,0,0,.6);
+    --shadow-sm:0 6px 16px -10px rgba(0,0,0,.7);
+    --c-shinozuka:#F5F5FA;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#FBF7FF; --surface:#FFFFFF; --surface-2:#F5EEFC;
+  --ink:#241A33; --ink-soft:#6B5E7E; --line:#EADFF6; --accent:#9B5DE5;
+  --shadow:0 10px 30px -12px rgba(80,40,120,.28);
+  --shadow-sm:0 4px 14px -8px rgba(80,40,120,.35);
+  --c-shinozuka:#EDEDF2;
+}
+:root[data-theme="dark"]{
+  --bg:#150F1E; --surface:#1F1729; --surface-2:#291E38;
+  --ink:#F4EEFC; --ink-soft:#B7A8CC; --line:#362945; --accent:#C79BFF;
+  --shadow:0 14px 34px -14px rgba(0,0,0,.6);
+  --shadow-sm:0 6px 16px -10px rgba(0,0,0,.7);
+  --c-shinozuka:#F5F5FA;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);
+  line-height:1.6;font-size:16px;letter-spacing:.01em;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:calc(env(safe-area-inset-bottom) + 24px);
+}
+a{color:inherit}
+img{max-width:100%}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 16px}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ============ TOP RAINBOW + HERO ============ */
+.topbar{height:8px;background:var(--rainbow)}
+header.hero{
+  position:relative;overflow:hidden;
+  background:
+    radial-gradient(120% 90% at 15% -10%,color-mix(in srgb,var(--c-hashimoto) 30%,transparent),transparent 60%),
+    radial-gradient(120% 90% at 90% 0%,color-mix(in srgb,var(--c-teranishi) 26%,transparent),transparent 55%),
+    var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.hero-inner{padding:26px 16px 30px;max-width:var(--maxw);margin:0 auto}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:7px;font-size:.72rem;font-weight:800;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 12%,transparent);
+  padding:5px 11px;border-radius:999px;
+}
+h1.logo{
+  margin:14px 0 6px;font-size:var(--fs-hero);font-weight:900;line-height:1.02;
+  letter-spacing:-.02em;text-wrap:balance;
+}
+h1.logo .z{
+  background:var(--rainbow);-webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.tagline{color:var(--ink-soft);font-weight:600;margin:0;max-width:34em}
+.hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:700;
+  background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft);
+  padding:6px 12px;border-radius:999px;
+}
+.chip b{color:var(--ink)}
+
+/* “今日は札幌” バナー */
+.today-banner{
+  margin-top:18px;border-radius:var(--r);padding:16px 18px;color:#fff;position:relative;overflow:hidden;
+  background:linear-gradient(120deg,var(--c-sato),var(--c-hashimoto) 55%,var(--c-kikuchi));
+  box-shadow:var(--shadow);
+}
+.today-banner .lbl{font-size:.72rem;font-weight:900;letter-spacing:.14em;opacity:.9}
+.today-banner .big{font-size:clamp(1.3rem,5vw,1.9rem);font-weight:900;margin:2px 0 2px;text-shadow:0 1px 8px rgba(0,0,0,.15)}
+.today-banner .sub{font-weight:700;opacity:.95;font-size:.9rem}
+.today-banner .spark{position:absolute;right:-6px;top:-10px;font-size:5rem;opacity:.25;transform:rotate(12deg)}
+
+/* ============ NAV ============ */
+nav.pills{
+  position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 86%,transparent);
+  backdrop-filter:saturate(150%) blur(10px);-webkit-backdrop-filter:saturate(150%) blur(10px);
+  border-bottom:1px solid var(--line);
+}
+nav.pills .row{display:flex;gap:8px;overflow-x:auto;padding:11px 16px;max-width:var(--maxw);margin:0 auto;scrollbar-width:none}
+nav.pills .row::-webkit-scrollbar{display:none}
+nav.pills a{
+  white-space:nowrap;text-decoration:none;font-weight:800;font-size:.86rem;color:var(--ink-soft);
+  background:var(--surface);border:1px solid var(--line);padding:7px 14px;border-radius:999px;
+  transition:transform .12s ease,color .12s ease,border-color .12s;
+}
+nav.pills a:hover{color:var(--ink);border-color:var(--accent);transform:translateY(-1px)}
+
+/* ============ SECTIONS ============ */
+section{padding:30px 0 6px}
+.sec-head{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.sec-head h2{margin:0;font-size:var(--fs-h2);font-weight:900;letter-spacing:-.01em}
+.sec-head .dot{width:12px;height:12px;border-radius:50%;background:var(--rainbow);flex:none;align-self:center}
+.sec-head .note{font-size:.8rem;color:var(--ink-soft);font-weight:600}
+
+/* ============ MEMBER CARDS ============ */
+.member-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.mcard{
+  --mc:var(--accent);
+  position:relative;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);
+  padding:14px;cursor:pointer;overflow:hidden;box-shadow:var(--shadow-sm);
+  transition:transform .14s ease,box-shadow .14s ease;text-align:left;
+}
+.mcard:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+.mcard::before{content:"";position:absolute;inset:0 auto 0 0;width:6px;background:var(--mc)}
+.mcard .avatar{
+  width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
+  font-size:1.5rem;font-weight:900;color:#fff;
+  background:linear-gradient(140deg,var(--mc),color-mix(in srgb,var(--mc) 55%,#fff));
+  box-shadow:0 6px 14px -6px var(--mc);
+}
+.mcard .avatar.lite{color:#3a2f4a;text-shadow:none}
+.mcard .mname{font-weight:900;font-size:1.06rem;margin:10px 0 0}
+.mcard .mkana{font-size:.72rem;color:var(--ink-soft);font-weight:700}
+.mcard .mrow{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:.76rem;color:var(--ink-soft);font-weight:700}
+.mcard .swatch{width:12px;height:12px;border-radius:50%;background:var(--mc);border:1px solid rgba(0,0,0,.12);flex:none}
+.mcard .bdaytag{
+  position:absolute;top:12px;right:12px;font-size:.66rem;font-weight:900;
+  background:color-mix(in srgb,var(--mc) 18%,var(--surface));color:var(--ink);
+  padding:3px 8px;border-radius:999px;border:1px solid color-mix(in srgb,var(--mc) 40%,transparent);
+}
+
+/* details drawer */
+.mdetail{
+  grid-column:1/-1;border-radius:var(--r);border:1px solid var(--line);
+  background:var(--surface-2);padding:0 16px;max-height:0;overflow:hidden;
+  transition:max-height .3s ease,padding .3s ease;
+}
+.mdetail.open{max-height:420px;padding:16px}
+.mdetail h3{margin:0 0 6px;font-size:1.15rem;font-weight:900;display:flex;align-items:center;gap:8px}
+.mdetail .facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:10px 0}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.fact .k{font-size:.66rem;color:var(--ink-soft);font-weight:800;letter-spacing:.06em}
+.fact .v{font-weight:800;font-size:.95rem}
+.mdetail p{margin:6px 0 0;color:var(--ink-soft);font-weight:600;font-size:.9rem}
+
+/* ============ COUNTDOWN ============ */
+.count-wrap{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:640px){.count-wrap{grid-template-columns:1.2fr 1fr}}
+.next-bday{
+  border-radius:var(--r);padding:20px;color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow);
+}
+.next-bday .lbl{font-size:.72rem;font-weight:900;letter-spacing:.14em;opacity:.92}
+.next-bday .who{font-size:clamp(1.5rem,6vw,2.2rem);font-weight:900;margin:4px 0}
+.next-bday .days{font-size:.95rem;font-weight:800}
+.next-bday .days b{font-size:1.5rem}
+.bday-list{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px;box-shadow:var(--shadow-sm)}
+.bday-list .item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px}
+.bday-list .item+.item{border-top:1px solid var(--line)}
+.bday-list .swatch{width:14px;height:14px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.12)}
+.bday-list .nm{font-weight:800;flex:1}
+.bday-list .dt{font-size:.82rem;color:var(--ink-soft);font-weight:800}
+.bday-list .in{font-size:.74rem;font-weight:900;color:var(--accent)}
+
+/* ============ CARDS / FEEDS ============ */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:16px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:8px;
+  text-decoration:none;transition:transform .14s,box-shadow .14s,border-color .14s;
+}
+a.card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:var(--accent)}
+.tag{
+  align-self:flex-start;font-size:.68rem;font-weight:900;letter-spacing:.05em;
+  padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--accent);
+  border:1px solid var(--line);text-transform:uppercase;
+}
+.card .ttl{font-weight:800;font-size:1rem;line-height:1.4}
+.card .meta{font-size:.78rem;color:var(--ink-soft);font-weight:700;margin-top:auto;display:flex;gap:8px;flex-wrap:wrap}
+.card .go{font-size:.78rem;font-weight:900;color:var(--accent)}
+.badge-sample{
+  font-size:.62rem;font-weight:900;background:var(--surface-2);color:var(--ink-soft);
+  border:1px dashed var(--line);padding:2px 7px;border-radius:999px;
+}
+
+/* SNS icons */
+.sns-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.sns{
+  display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);
+  border-radius:16px;padding:12px 14px;text-decoration:none;box-shadow:var(--shadow-sm);
+  transition:transform .12s,border-color .12s;
+}
+.sns:hover{transform:translateY(-2px);border-color:var(--accent)}
+.sns .ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:1.1rem;color:#fff;flex:none}
+.sns .t{font-weight:800;font-size:.9rem}
+.sns .h{font-size:.74rem;color:var(--ink-soft);font-weight:700}
+
+/* ============ TOOLS (localStorage) ============ */
+.tools-grid{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:720px){.tools-grid{grid-template-columns:1fr 1fr}}
+.tool{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm)}
+.tool h3{margin:0 0 4px;font-size:1.05rem;font-weight:900;display:flex;align-items:center;gap:8px}
+.tool .sub{font-size:.78rem;color:var(--ink-soft);font-weight:600;margin:0 0 12px}
+.inrow{display:flex;gap:8px;margin-bottom:10px}
+input[type=text]{
+  flex:1;min-width:0;font-family:inherit;font-size:.95rem;font-weight:600;color:var(--ink);
+  background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;
+}
+input[type=text]:focus{outline:2px solid var(--accent);outline-offset:1px}
+.btn{
+  font-family:inherit;font-weight:900;font-size:.9rem;cursor:pointer;border:none;border-radius:12px;
+  padding:10px 16px;color:#fff;background:var(--accent);white-space:nowrap;
+  transition:transform .1s,filter .1s;
+}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--line)}
+ul.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+ul.list li{
+  display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:12px;padding:9px 12px;font-weight:700;font-size:.92rem;
+}
+ul.list li .num{font-weight:900;color:var(--accent);min-width:1.4em;text-align:center}
+ul.list li .txt{flex:1;word-break:break-word}
+ul.list li.done .txt{text-decoration:line-through;color:var(--ink-soft)}
+ul.list li .x{cursor:pointer;color:var(--ink-soft);font-weight:900;font-size:1.1rem;border:none;background:none;padding:0 4px}
+ul.list li .chk{width:20px;height:20px;flex:none;border-radius:6px;border:2px solid var(--line);cursor:pointer;display:grid;place-items:center;color:#fff;font-size:.8rem}
+ul.list li.done .chk{background:var(--accent);border-color:var(--accent)}
+.empty{color:var(--ink-soft);font-weight:600;font-size:.85rem;text-align:center;padding:14px}
+
+/* lucky */
+.lucky{
+  text-align:center;border-radius:var(--r);padding:22px 16px;background:var(--surface);
+  border:1px solid var(--line);box-shadow:var(--shadow-sm);
+}
+.lucky .face{font-size:3.4rem;font-weight:900;width:96px;height:96px;border-radius:28px;margin:0 auto 10px;display:grid;place-items:center;color:#fff}
+.lucky .nm{font-size:1.5rem;font-weight:900}
+.lucky .msg{color:var(--ink-soft);font-weight:700;margin:4px 0 14px;min-height:1.5em}
+
+/* ============ PENLIGHT ============ */
+.pen-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px}
+.pen{
+  border:none;cursor:pointer;border-radius:16px;padding:14px 8px;color:#fff;font-weight:900;
+  box-shadow:var(--shadow-sm);transition:transform .1s;font-family:inherit;
+}
+.pen:active{transform:scale(.95)}
+.pen .pn{font-size:.95rem}
+.pen .pc{font-size:.72rem;opacity:.9;font-weight:800}
+.pen.lite{color:#3a2f4a}
+#penOverlay{
+  position:fixed;inset:0;z-index:100;display:none;place-items:center;text-align:center;
+  flex-direction:column;
+}
+#penOverlay.show{display:grid}
+#penOverlay .name{font-size:clamp(2rem,10vw,4rem);font-weight:900;mix-blend-mode:overlay;color:#fff}
+#penOverlay .hint{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 24px);left:0;right:0;font-weight:800;color:rgba(0,0,0,.5)}
+
+/* ============ FOOTER ============ */
+footer{margin-top:36px;border-top:1px solid var(--line);padding:22px 0 8px;color:var(--ink-soft)}
+footer .wrap{display:flex;flex-direction:column;gap:6px;font-size:.82rem;font-weight:600}
+footer b{color:var(--ink)}
+.disclaimer{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:.78rem;line-height:1.5}
+
+/* theme toggle */
+.tt{
+  position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom) + 14px);z-index:30;
+  width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--surface);
+  cursor:pointer;font-size:1.3rem;box-shadow:var(--shadow);display:grid;place-items:center;
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="topbar"></div>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="eyebrow">💜 非公式ファンダッシュボード</span>
+    <h1 class="logo">timele<span class="z">sz</span> ファンベース</h1>
+    <p class="tagline">タイムレスの“好き”を全部ここに。メンバー名鑑、誕生日カウントダウン、ニュース、そしてライブ会場で使える推し活ツール。</p>
+    <div class="hero-meta">
+      <span class="chip">👥 <b>8人体制</b></span>
+      <span class="chip">🎤 旧 <b>Sexy Zone</b></span>
+      <span class="chip">🏢 <b>STARTO ENTERTAINMENT</b></span>
+      <span class="chip" id="todayChip">📅 <b>—</b></span>
+    </div>
+    <div class="today-banner">
+      <span class="spark">🎤</span>
+      <div class="lbl">TODAY'S LIVE</div>
+      <div class="big">札幌公演、今日開催！🎉</div>
+      <div class="sub">最高の夜になりますように。うちわ準備OK？ペンライトの電池は満タン？</div>
+    </div>
+  </div>
+</header>
+
+<nav class="pills">
+  <div class="row">
+    <a href="#members">メンバー名鑑</a>
+    <a href="#bday">誕生日</a>
+    <a href="#news">ニュース</a>
+    <a href="#sns">SNS</a>
+    <a href="#penlight">ペンライト</a>
+    <a href="#setlist">セトリメモ</a>
+    <a href="#checklist">推し活チェック</a>
+    <a href="#lucky">おみくじ</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- MEMBERS -->
+  <section id="members">
+    <div class="sec-head"><span class="dot"></span><h2>メンバー名鑑</h2><span class="note">タップでプロフィールが開くよ</span></div>
+    <div class="member-grid" id="memberGrid"></div>
+  </section>
+
+  <!-- BIRTHDAY -->
+  <section id="bday">
+    <div class="sec-head"><span class="dot"></span><h2>お誕生日カウントダウン</h2></div>
+    <div class="count-wrap">
+      <div class="next-bday" id="nextBday"></div>
+      <div class="bday-list" id="bdayList"></div>
+    </div>
+  </section>
+
+  <!-- NEWS -->
+  <section id="news">
+    <div class="sec-head"><span class="dot"></span><h2>ニュース＆トピック</h2><span class="note">公式リンク＋差し込み用サンプル</span></div>
+    <div class="cards" id="newsCards"></div>
+  </section>
+
+  <!-- SNS -->
+  <section id="sns">
+    <div class="sec-head"><span class="dot"></span><h2>SNS ＆ 公式リンク</h2></div>
+    <div class="sns-grid" id="snsGrid"></div>
+    <p class="note" style="margin-top:10px">※ アカウントは変更される場合があります。最新は公式サイトから確認してね。</p>
+  </section>
+
+  <!-- PENLIGHT -->
+  <section id="penlight">
+    <div class="sec-head"><span class="dot"></span><h2>予備ペンライト</h2><span class="note">推しの色をタップ→画面が光る（会場の緊急用）</span></div>
+    <div class="pen-grid" id="penGrid"></div>
+  </section>
+
+  <!-- SETLIST -->
+  <section id="setlist">
+    <div class="sec-head"><span class="dot"></span><h2>セットリスト メモ</h2><span class="note">今夜の曲を記録📝（自動保存）</span></div>
+    <div class="tool">
+      <div class="inrow">
+        <input type="text" id="setInput" placeholder="曲名を入力してEnter" autocomplete="off">
+        <button class="btn" id="setAdd">追加</button>
+      </div>
+      <ul class="list" id="setList"></ul>
+      <p class="empty" id="setEmpty">まだ空っぽ。1曲目が始まったら追加しよう🎶</p>
+    </div>
+  </section>
+
+  <!-- CHECKLIST -->
+  <section id="checklist">
+    <div class="sec-head"><span class="dot"></span><h2>推し活チェックリスト</h2><span class="note">持ち物・やること（自動保存）</span></div>
+    <div class="tool">
+      <div class="inrow">
+        <input type="text" id="chkInput" placeholder="例：ペンライト電池 / うちわ / チケット" autocomplete="off">
+        <button class="btn" id="chkAdd">追加</button>
+      </div>
+      <ul class="list" id="chkList"></ul>
+      <p class="empty" id="chkEmpty" style="display:none">リストは空です</p>
+    </div>
+  </section>
+
+  <!-- LUCKY -->
+  <section id="lucky">
+    <div class="sec-head"><span class="dot"></span><h2>今日のラッキーメンバー おみくじ</h2></div>
+    <div class="lucky">
+      <div class="face" id="luckyFace">?</div>
+      <div class="nm" id="luckyName">タップしてね</div>
+      <div class="msg" id="luckyMsg">ボタンを押すと今日の“来る”メンバーを占うよ🔮</div>
+      <button class="btn" id="luckyBtn">🎲 引く</button>
+    </div>
+  </section>
+
+  <div class="disclaimer" style="margin:24px 0">
+    ⚠️ これはファンが個人的に作った<b>非公式</b>ダッシュボードです。公式・所属事務所とは関係ありません。
+    メンバー情報は公開情報をもとにしていますが、最新の正確な情報は必ず公式サイト・公式SNSでご確認ください。
+    ニュースやライブ日程の一部は書き換え用のサンプルです。
+  </div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>💜❤️💚🩵💛🩷🟡🤍 <b>timelesz ファンベース</b></div>
+    <div>メンバーカラー：佐藤=赤／菊池=紫／松島=緑／寺西=水色／原=黄緑／橋本=ピンク／猪俣=黄／篠塚=白</div>
+    <div>妻とお姉さんへ。今日の札幌、楽しんできてね！🎤✨</div>
+  </div>
+</footer>
+
+<button class="tt" id="themeToggle" aria-label="テーマ切り替え">🌙</button>
+
+<div id="penOverlay"><div class="name" id="penName"></div><div class="hint">画面をタップで戻る</div></div>
+
+<script>
+/* ================= DATA ================= */
+const MEMBERS = [
+  {id:"sato", name:"佐藤 勝利", kana:"さとう しょうり", initial:"勝", color:"var(--c-sato)", colorName:"赤",
+   birth:"1996-10-30", from:"東京都", origin:true,
+   blurb:"Sexy Zone時代からのメインボーカル＆センター。透明感のある歌声と正統派アイドルの佇まいでグループの“顔”。"},
+  {id:"kikuchi", name:"菊池 風磨", kana:"きくち ふうま", initial:"風", color:"var(--c-kikuchi)", colorName:"紫",
+   birth:"1995-03-07", from:"東京都", origin:true,
+   blurb:"リーダー的存在でグループの舵取り役。トーク・バラエティ・作詞まで幅広く、timeleszの新体制を牽引。"},
+  {id:"matsushima", name:"松島 聡", kana:"まつしま そう", initial:"聡", color:"var(--c-matsushima)", colorName:"緑",
+   birth:"1997-11-10", from:"静岡県", origin:true,
+   blurb:"ダンスとムードメーカー担当。天然で愛されキャラ、笑顔がトレードマークのオリジナルメンバー。"},
+  {id:"teranishi", name:"寺西 拓人", kana:"てらにし たくと", initial:"拓", color:"var(--c-teranishi)", colorName:"水色",
+   birth:"1994-12-31", from:"神奈川県", origin:false,
+   blurb:"タイプロ（timelesz project）加入の新メンバー。長いジュニア経験に裏打ちされた実力派で表現力が光る。"},
+  {id:"hara", name:"原 嘉孝", kana:"はら よしたか", initial:"嘉", color:"var(--c-hara)", colorName:"黄緑",
+   birth:"1995-09-25", from:"神奈川県", origin:false,
+   blurb:"元関西ジャニーズJr.〜俳優を経てタイプロで加入。熱量とエンタメ力にあふれる新メンバー。"},
+  {id:"hashimoto", name:"橋本 将生", kana:"はしもと まさき", initial:"将", color:"var(--c-hashimoto)", colorName:"ピンク",
+   birth:"1999-10-17", from:"神奈川県 茅ヶ崎市", origin:false,
+   blurb:"タイプロ加入の新メンバー。爽やかなビジュアルとフレッシュさで人気急上昇。"},
+  {id:"inomata", name:"猪俣 周杜", kana:"いのまた しゅうと", initial:"周", color:"var(--c-inomata)", colorName:"黄色",
+   birth:"2001-08-17", from:"茨城県", origin:false,
+   blurb:"タイプロ加入の最年少に近い新メンバー。ダンススキルとキレのあるパフォーマンスが武器。"},
+  {id:"shinozuka", name:"篠塚 大輝", kana:"しのづか だいき", initial:"大", color:"var(--c-shinozuka)", colorName:"白",
+   birth:"2002-07-09", from:"—", origin:false, lite:true,
+   blurb:"タイプロ加入の新メンバー。初々しさとポテンシャルでこれからの成長が楽しみな存在。"},
+];
+
+/* ニュース：★=実在の公式ソース、それ以外は差し込み用サンプル */
+const NEWS = [
+  {tag:"公式", real:true, title:"timelesz 新メンバー決定！ 新体制は8人編成に", src:"universal-music.co.jp",
+   url:"https://www.universal-music.co.jp/timelesz/news/2025-02-15/", date:"2025-02-15"},
+  {tag:"トピック", real:true, title:"新生timelesz、メンバーカラー発表（赤/紫/緑/水色/黄緑/ピンク/黄/白）", src:"ORICON NEWS",
+   url:"https://www.oricon.co.jp/news/2369289/full/", date:"2025-02"},
+  {tag:"ライブ", real:false, title:"（サンプル）札幌公演 開催 🎤 感想はセトリメモへ", src:"あなたの記録", url:"#setlist", date:"今日"},
+  {tag:"ニュース", real:false, title:"（サンプル）ここに最新ニュースの見出しを追加できます", src:"—", url:"#", date:"—"},
+];
+
+const SNS = [
+  {t:"公式サイト", h:"universal-music.co.jp/timelesz", url:"https://www.universal-music.co.jp/timelesz/", bg:"var(--accent)", ic:"🌐"},
+  {t:"X (旧Twitter)", h:"公式アカウントを検索", url:"https://x.com/search?q=timelesz%20公式&f=user", bg:"#111", ic:"𝕏"},
+  {t:"Instagram", h:"公式アカウントを検索", url:"https://www.instagram.com/explore/tags/timelesz/", bg:"linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)", ic:"📷"},
+  {t:"YouTube", h:"公式チャンネルを検索", url:"https://www.youtube.com/results?search_query=timelesz+公式", bg:"#FF0000", ic:"▶"},
+  {t:"タイプロ (Netflix)", h:"timelesz project", url:"https://www.netflix.com/search?q=timelesz", bg:"#E50914", ic:"🎬"},
+  {t:"ハッシュタグ", h:"#timelesz #タイプロ", url:"https://x.com/search?q=%23timelesz&f=live", bg:"linear-gradient(45deg,#4CC9F0,#9B5DE5)", ic:"#"},
+];
+
+const LUCKY_MSGS = [
+  "今日はこのメンバーが“来る”予感…！ステージ最前で目が合うかも👀",
+  "推しの笑顔にやられる一日になりそう。カメラの準備を🎥",
+  "神席の波動を感じる…！うちわを高く掲げて📣",
+  "MCでこのメンバーが大暴れするかも。笑いすぎ注意😆",
+  "尊さで語彙力を失う予感。深呼吸していこう🫧",
+  "今日のファンサはこの子から。心の準備を💘",
+];
+
+/* ================= HELPERS ================= */
+const $ = s=>document.querySelector(s);
+const el = (t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
+const pad2 = n=>String(n).padStart(2,"0");
+
+function nextBirthday(birthISO){
+  const now = new Date();
+  const [_, m, d] = birthISO.split("-").map(Number);
+  let year = now.getFullYear();
+  let next = new Date(year, m-1, d);
+  const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if(next < todayMid) next = new Date(year+1, m-1, d);
+  const days = Math.round((next - todayMid)/86400000);
+  return {next, days};
+}
+function ageOn(birthISO, when){
+  const [by,bm,bd]=birthISO.split("-").map(Number);
+  let a = when.getFullYear()-by;
+  if(when.getMonth()+1 < bm || (when.getMonth()+1===bm && when.getDate()<bd)) a--;
+  return a;
+}
+function fmtDate(dt){return `${dt.getMonth()+1}月${dt.getDate()}日`;}
+
+/* ================= RENDER: TODAY ================= */
+(function(){
+  const now=new Date();
+  const wd="日月火水木金土"[now.getDay()];
+  const s=`${now.getFullYear()}.${pad2(now.getMonth()+1)}.${pad2(now.getDate())}（${wd}）`;
+  $("#todayChip").innerHTML=`📅 <b>${s}</b>`;
+})();
+
+/* ================= RENDER: MEMBERS ================= */
+const grid = $("#memberGrid");
+MEMBERS.forEach(m=>{
+  const card = el("button","mcard");
+  card.style.setProperty("--mc", m.color);
+  const {days} = nextBirthday(m.birth);
+  const bdayTag = days===0 ? "🎂 今日!" : `🎂 あと${days}日`;
+  card.innerHTML = `
+    <span class="bdaytag">${bdayTag}</span>
+    <div class="avatar ${m.lite?'lite':''}">${m.initial}</div>
+    <div class="mname">${m.name}</div>
+    <div class="mkana">${m.kana}</div>
+    <div class="mrow"><span class="swatch"></span>${m.colorName}${m.origin?' ・ 旧SZ':' ・ タイプロ'}</div>`;
+  card.addEventListener("click",()=>openDetail(m, card));
+  grid.appendChild(card);
+});
+
+let openId=null, drawer=null;
+function openDetail(m, card){
+  if(drawer){drawer.remove();drawer=null;}
+  if(openId===m.id){openId=null;return;}
+  openId=m.id;
+  const now=new Date();
+  const {next,days}=nextBirthday(m.birth);
+  const [by,bm,bd]=m.birth.split("-");
+  drawer = el("div","mdetail open");
+  drawer.style.setProperty("--mc", m.color);
+  drawer.innerHTML = `
+    <h3><span class="swatch" style="width:14px;height:14px;border-radius:50%;background:var(--mc);display:inline-block"></span>${m.name} <span style="font-size:.8rem;color:var(--ink-soft);font-weight:700">${m.colorName}</span></h3>
+    <div class="facts">
+      <div class="fact"><div class="k">生年月日</div><div class="v tnum">${by}.${bm}.${bd}</div></div>
+      <div class="fact"><div class="k">年齢</div><div class="v tnum">${ageOn(m.birth,now)}歳</div></div>
+      <div class="fact"><div class="k">出身</div><div class="v">${m.from}</div></div>
+      <div class="fact"><div class="k">加入</div><div class="v">${m.origin?'オリジナル':'タイプロ'}</div></div>
+      <div class="fact"><div class="k">次の誕生日</div><div class="v tnum">${fmtDate(next)}</div></div>
+      <div class="fact"><div class="k">カウントダウン</div><div class="v tnum">${days===0?'🎂 今日!':'あと'+days+'日'}</div></div>
+    </div>
+    <p>${m.blurb}</p>`;
+  // insert after the row containing the card: place at end of grid for simplicity, but position after card visually
+  card.insertAdjacentElement("afterend", drawer);
+}
+
+/* ================= RENDER: BIRTHDAY COUNTDOWN ================= */
+(function(){
+  const sorted=[...MEMBERS].map(m=>({m,...nextBirthday(m.birth)})).sort((a,b)=>a.days-b.days);
+  const top=sorted[0];
+  const nb=$("#nextBday");
+  nb.style.background=`linear-gradient(135deg, ${getComputedStyle(document.documentElement).getPropertyValue(top.m.color.slice(4,-1))||'#9B5DE5'}, rgba(0,0,0,.15))`;
+  nb.style.setProperty("--mc",top.m.color);
+  nb.style.background=`linear-gradient(135deg, ${top.m.color}, color-mix(in srgb, ${top.m.color} 45%, #7a4bd8))`;
+  nb.innerHTML=`
+    <div class="lbl">NEXT BIRTHDAY 🎂</div>
+    <div class="who">${top.m.name}</div>
+    <div class="days">${top.days===0?'<b>本日お誕生日！</b> おめでとう🎉':'あと <b class="tnum">'+top.days+'</b> 日（'+fmtDate(top.next)+'）'}</div>`;
+  const list=$("#bdayList");
+  sorted.forEach(({m,next,days})=>{
+    const row=el("div","item");
+    row.innerHTML=`
+      <span class="swatch" style="background:${m.color}"></span>
+      <span class="nm">${m.name}</span>
+      <span class="dt tnum">${fmtDate(next)}</span>
+      <span class="in tnum">${days===0?'今日!':'あと'+days+'日'}</span>`;
+    list.appendChild(row);
+  });
+})();
+
+/* ================= RENDER: NEWS ================= */
+(function(){
+  const wrap=$("#newsCards");
+  NEWS.forEach(n=>{
+    const a=el("a","card");
+    a.href=n.url; if(n.url.startsWith("http")){a.target="_blank";a.rel="noopener";}
+    a.innerHTML=`
+      <span class="tag">${n.tag}</span>
+      <div class="ttl">${n.title}</div>
+      <div class="meta">
+        <span>${n.date}</span><span>·</span><span>${n.src}</span>
+        ${n.real?'':'<span class="badge-sample">差し込み用</span>'}
+      </div>
+      <span class="go">${n.url==='#'?'（ここに追加）':'ひらく →'}</span>`;
+    wrap.appendChild(a);
+  });
+})();
+
+/* ================= RENDER: SNS ================= */
+(function(){
+  const wrap=$("#snsGrid");
+  SNS.forEach(s=>{
+    const a=el("a","sns");
+    a.href=s.url;a.target="_blank";a.rel="noopener";
+    a.innerHTML=`<span class="ic" style="background:${s.bg}">${s.ic}</span><span><span class="t" style="display:block">${s.t}</span><span class="h">${s.h}</span></span>`;
+    wrap.appendChild(a);
+  });
+})();
+
+/* ================= RENDER: PENLIGHT ================= */
+(function(){
+  const wrap=$("#penGrid");
+  MEMBERS.forEach(m=>{
+    const b=el("button","pen"+(m.lite?" lite":""));
+    b.style.background=m.color;
+    b.innerHTML=`<div class="pn">${m.name.split(" ")[1]}</div><div class="pc">${m.colorName}</div>`;
+    b.addEventListener("click",()=>lightUp(m));
+    wrap.appendChild(b);
+  });
+  const ov=$("#penOverlay");
+  ov.addEventListener("click",()=>{ov.classList.remove("show");});
+})();
+function lightUp(m){
+  const ov=$("#penOverlay");
+  ov.style.background=m.color;
+  $("#penName").textContent=m.name;
+  $("#penName").style.color = m.lite ? "#3a2f4a" : "#fff";
+  ov.classList.add("show");
+}
+
+/* ================= LOCALSTORAGE TOOLS ================= */
+function makeStore(key, listEl, emptyEl, opts={}){
+  let items = JSON.parse(localStorage.getItem(key)||"[]");
+  function save(){localStorage.setItem(key, JSON.stringify(items));}
+  function render(){
+    listEl.innerHTML="";
+    if(emptyEl) emptyEl.style.display = items.length?"none":"block";
+    items.forEach((it,i)=>{
+      const li=el("li"); if(it.done)li.classList.add("done");
+      let inner="";
+      if(opts.check){
+        inner+=`<button class="chk" aria-label="完了">${it.done?'✓':''}</button>`;
+      }else{
+        inner+=`<span class="num tnum">${i+1}</span>`;
+      }
+      inner+=`<span class="txt">${it.text.replace(/</g,'&lt;')}</span><button class="x" aria-label="削除">×</button>`;
+      li.innerHTML=inner;
+      if(opts.check){
+        li.querySelector(".chk").addEventListener("click",()=>{it.done=!it.done;save();render();});
+      }
+      li.querySelector(".x").addEventListener("click",()=>{items.splice(i,1);save();render();});
+      listEl.appendChild(li);
+    });
+  }
+  function add(text){text=text.trim();if(!text)return;items.push({text,done:false});save();render();}
+  render();
+  return {add};
+}
+// setlist
+(function(){
+  const store=makeStore("tlz_setlist_v1",$("#setList"),$("#setEmpty"),{check:false});
+  const inp=$("#setInput");
+  const go=()=>{store.add(inp.value);inp.value="";inp.focus();};
+  $("#setAdd").addEventListener("click",go);
+  inp.addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+})();
+// checklist (seed defaults on first visit)
+(function(){
+  const KEY="tlz_checklist_v1";
+  if(localStorage.getItem(KEY)===null){
+    localStorage.setItem(KEY,JSON.stringify([
+      {text:"チケット / QR",done:false},
+      {text:"ペンライトの電池",done:false},
+      {text:"うちわ",done:false},
+      {text:"モバイルバッテリー",done:false},
+      {text:"推しカラーの服 or グッズ",done:false},
+    ]));
+  }
+  const store=makeStore(KEY,$("#chkList"),$("#chkEmpty"),{check:true});
+  const inp=$("#chkInput");
+  const go=()=>{store.add(inp.value);inp.value="";inp.focus();};
+  $("#chkAdd").addEventListener("click",go);
+  inp.addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+})();
+
+/* ================= LUCKY ================= */
+(function(){
+  const btn=$("#luckyBtn");
+  btn.addEventListener("click",()=>{
+    const m=MEMBERS[Math.floor(Math.random()*MEMBERS.length)];
+    const msg=LUCKY_MSGS[Math.floor(Math.random()*LUCKY_MSGS.length)];
+    const face=$("#luckyFace");
+    face.textContent=m.initial;
+    face.style.background=m.color;
+    face.style.color=m.lite?"#3a2f4a":"#fff";
+    $("#luckyName").textContent=`${m.name}（${m.colorName}）`;
+    $("#luckyMsg").textContent=msg;
+  });
+})();
+
+/* ================= THEME TOGGLE ================= */
+(function(){
+  const btn=$("#themeToggle");
+  const root=document.documentElement;
+  function cur(){return root.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");}
+  function apply(t){root.setAttribute("data-theme",t);btn.textContent=t==="dark"?"☀️":"🌙";try{localStorage.setItem("tlz_theme",t);}catch(e){}}
+  const saved=localStorage.getItem("tlz_theme");
+  apply(saved || cur());
+  btn.addEventListener("click",()=>apply(cur()==="dark"?"light":"dark"));
+})();
+</script>
+</body>
+</html>
