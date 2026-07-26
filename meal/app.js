@@ -573,7 +573,9 @@
     const bmi = Metrics.bmi(p);
     const cat = Metrics.bmiCategory(bmi);
 
-    const balTone = Math.abs(balance) < 150 ? "good" : balance > 0 ? "bad" : "warn";
+    // 摂取 vs 消費: 消費以内=青(info) / 近づいたら黄(warn) / 超えたら赤(bad)
+    const near = Math.max(150, burned.total * 0.1);
+    const balTone = balance > 0 ? "bad" : balance > -near ? "warn" : "info";
     const balLabel = balance > 0 ? "摂取オーバー" : "消費が上回る";
 
     view.innerHTML = `
@@ -594,7 +596,7 @@
           <div class="kpi ${balTone}"><div class="kpi-l">${balLabel}</div><div class="kpi-v">${balance > 0 ? "+" : ""}${fmt(balance)}<small>kcal</small></div></div>
         </div>
 
-        ${renderBalanceBar(totals.all.kcal, burned.total, target)}
+        ${renderBalanceBar(totals.all.kcal, burned.total, target, balTone)}
 
         <h3 class="mt">消費の内訳</h3>
         <div class="breakdown">
@@ -624,12 +626,12 @@
     if (backBtn) backBtn.onclick = () => { dashDate = todayStr(); renderDashboard(view); };
   }
 
-  function renderBalanceBar(intake, burned, target) {
+  function renderBalanceBar(intake, burned, target, tone) {
     const max = Math.max(intake, burned, target, 1) * 1.1;
     const w = (v) => `${Math.min(100, (v / max) * 100)}%`;
     return `
       <div class="balbar">
-        <div class="balrow"><span class="bl">摂取</span><div class="track"><div class="fill intake" style="width:${w(intake)}"></div></div><span class="bv">${fmt(intake)}</span></div>
+        <div class="balrow"><span class="bl">摂取</span><div class="track"><div class="fill intake tone-${tone || "warn"}" style="width:${w(intake)}"></div></div><span class="bv">${fmt(intake)}</span></div>
         <div class="balrow"><span class="bl">消費</span><div class="track"><div class="fill burn" style="width:${w(burned)}"></div></div><span class="bv">${fmt(burned)}</span></div>
         <div class="balrow"><span class="bl">目標</span><div class="track"><div class="fill target" style="width:${w(target)}"></div></div><span class="bv">${fmt(target)}</span></div>
       </div>`;
@@ -784,7 +786,7 @@
         <div class="chart-legend">
           <span><i class="dot br"></i>朝</span><span><i class="dot lu"></i>昼</span>
           <span><i class="dot di"></i>晩</span><span><i class="dot sn"></i>間食</span>
-          <span><i class="line burn"></i>消費</span><span><i class="line wt"></i>体重</span>
+          <span><i class="line burn"></i>消費</span><span><i class="line tgt"></i>目標摂取</span><span><i class="line wt"></i>体重</span>
         </div>
         <div id="chart-tip" class="chart-tip">グラフをタッチすると、その日の詳細が表示されます</div>
         <div class="chart-wrap"><canvas id="chart" height="320"></canvas></div>
@@ -963,6 +965,19 @@
       const y = y0 - (d.burn / maxKcal) * plotH;
       ctx.fillStyle = "#e0564f"; ctx.beginPath(); ctx.arc(cx, y, 2.5, 0, 7); ctx.fill();
     });
+
+    // 目標摂取のボーダー横線（この線を超えた棒＝摂取オーバー）
+    const goal = GOALS.find((g) => g.key === (State.data.profile.goal)) || GOALS[1];
+    const tgtVals = data.filter((d) => d.hasData && d.burn > 0).map((d) => d.burn * (1 + goal.adjust));
+    if (tgtVals.length) {
+      const targetKcal = tgtVals.reduce((a, b) => a + b, 0) / tgtVals.length;
+      const y = y0 - (Math.min(targetKcal, maxKcal) / maxKcal) * plotH;
+      ctx.strokeStyle = "#3a7bd5"; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cssW - padR, y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = "#3a7bd5"; ctx.textAlign = "left"; ctx.font = "10px sans-serif";
+      ctx.fillText(`目標 ${fmt(targetKcal)}`, padL + 4, y - 4);
+      ctx.font = "11px sans-serif";
+    }
 
     // 体重ライン(右軸)
     if (weights.length) {

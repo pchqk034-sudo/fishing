@@ -87,8 +87,8 @@
     .stat-l, .kpi-l { font-size:12px; color:var(--muted); }
     .stat-v, .kpi-v { font-size:26px; font-weight:700; margin:4px 0; }
     .stat-v small, .kpi-v small { font-size:12px; color:var(--muted); font-weight:400; margin-left:2px; }
-    .kpi.good { border-color:var(--good); } .kpi.warn { border-color:var(--warn); } .kpi.bad { border-color:var(--bad); }
-    .kpi.good .kpi-v { color:var(--good); } .kpi.warn .kpi-v { color:var(--warn); } .kpi.bad .kpi-v { color:var(--bad); }
+    .kpi.good { border-color:var(--good); } .kpi.warn { border-color:var(--warn); } .kpi.bad { border-color:var(--bad); } .kpi.info { border-color:var(--info); }
+    .kpi.good .kpi-v { color:var(--good); } .kpi.warn .kpi-v { color:var(--warn); } .kpi.bad .kpi-v { color:var(--bad); } .kpi.info .kpi-v { color:var(--info); }
 
     /* meals */
     .meals { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-top:10px; }
@@ -113,6 +113,10 @@
     .fill.intake { background:linear-gradient(90deg,#f6c453,#e0564f); }
     .fill.burn { background:linear-gradient(90deg,#67b26f,#2bb3a3); }
     .fill.target { background:linear-gradient(90deg,#4a90d9,#3a7bd5); }
+    /* 摂取の状態色（消費以内=青 / 近い=黄 / 超過=赤） */
+    .fill.tone-info { background:var(--info); }
+    .fill.tone-warn { background:var(--warn); }
+    .fill.tone-bad  { background:var(--bad); }
 
     /* nutrient bars */
     .nut { display:flex; flex-direction:column; gap:10px; margin-top:8px; }
@@ -132,6 +136,7 @@
     .dot.br { background:#f6c453; } .dot.lu { background:#67b26f; } .dot.di { background:#4a90d9; } .dot.sn { background:#c56cf0; }
     .line { display:inline-block; width:16px; height:0; border-top:2px solid; margin-right:5px; vertical-align:middle; }
     .line.burn { border-color:#e0564f; } .line.wt { border-color:#2bb3a3; border-top-style:dashed; }
+    .line.tgt { border-color:#3a7bd5; border-top-style:dashed; }
 
     /* advice */
     .advice-item { display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
@@ -189,7 +194,7 @@
 </head>
 <body>
   <div id="app"></div>
-  <script src="data.js?v=16"></script>
-  <script src="app.js?v=16"></script>
+  <script src="data.js?v=17"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>
