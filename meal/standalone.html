@@ -187,6 +187,39 @@
     .ph-img { width:100%; max-height:220px; object-fit:cover; border-radius:12px; margin:10px 0; }
     .ph-card { background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:10px; }
     .ph-macros { font-size:12px; color:var(--muted); margin:4px 0; }
+    /* AIチャット */
+    .chat-log { max-height:52vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px;
+      margin-top:12px; padding:10px; background:var(--bg); border:1px solid var(--line); border-radius:12px; }
+    .msg { padding:9px 12px; border-radius:12px; font-size:14px; max-width:88%; white-space:normal; line-height:1.6; }
+    .msg.user { align-self:flex-end; background:var(--brand); color:#fff; border-bottom-right-radius:4px; }
+    .msg.assistant { align-self:flex-start; background:var(--card); border:1px solid var(--line); border-bottom-left-radius:4px; }
+    #ch-input { flex:1; }
+
+    /* 未記録リマインダー */
+    .nudge { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13.5px;
+      background:rgba(217,140,23,.12); border:1px solid var(--warn); border-radius:10px; padding:10px 12px; margin-bottom:12px; }
+
+    /* レポート */
+    .report-view { font-size:13.5px; }
+    .report-view h2 { font-size:17px; margin:0 0 4px; }
+    .report-view h3 { font-size:14px; margin:16px 0 6px; padding-bottom:4px; border-bottom:1px solid var(--line); }
+    .rp-sub { color:var(--muted); font-size:12px; margin:0 0 8px; }
+    .rp-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+    .rp-tbl th, .rp-tbl td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); }
+    .rp-tbl th { color:var(--muted); font-weight:600; white-space:nowrap; }
+    .rp-days td, .rp-days th { font-variant-numeric:tabular-nums; }
+    .rp-list { margin:6px 0 0 20px; padding:0; font-size:13px; }
+    .rp-note { color:var(--muted); font-size:11.5px; margin-top:14px; }
+    #report-print { display:none; }
+    @media print {
+      #app, .modal-bg { display:none !important; }
+      #report-print { display:block !important; padding:16px; color:#000; background:#fff; font-size:12px; }
+      #report-print h2 { font-size:16px; } #report-print h3 { font-size:13px; margin:14px 0 5px; border-bottom:1px solid #ccc; }
+      #report-print table { width:100%; border-collapse:collapse; }
+      #report-print th, #report-print td { border-bottom:1px solid #ddd; padding:4px 6px; text-align:left; }
+      body { background:#fff; }
+    }
+
     .urlbox { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px;
       font-size:12px; word-break:break-all; font-family:ui-monospace,monospace; }
     code { background:var(--bg); border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:12px; word-break:break-all; }
@@ -582,6 +615,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       { key: "dashboard", label: "ダッシュボード", icon: "📊" },
       { key: "record", label: "記録する", icon: "✍️" },
       { key: "body", label: "からだ", icon: "❤️" },
+      { key: "chat", label: "AI相談", icon: "💬" },
       { key: "trend", label: "推移グラフ", icon: "📈" },
       { key: "profile", label: "プロフィール", icon: "👤" },
       { key: "settings", label: "設定", icon: "⚙️" },
@@ -613,6 +647,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       dashboard: renderDashboard,
       record: renderRecord,
       body: renderBody,
+      chat: renderChat,
       trend: renderTrend,
       profile: renderProfile,
       settings: renderSettings,
@@ -992,6 +1027,76 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     }
     throw new Error(`利用可能なGeminiモデルが見つかりませんでした（${lastErr || "不明"}）`);
   }
+  // ---- テキスト会話用のAI呼び出し（AI相談・レシピ提案で共用） --------------
+  async function askAI(msgs, system) {
+    const provider = State.data.settings.provider || "gemini";
+    const key = activeKey();
+    if (!key) throw new Error("APIキーが未設定です。設定タブで登録してください。");
+    return provider === "gemini"
+      ? askGemini(key, msgs, system)
+      : askAnthropic(key, msgs, system, State.data.settings.model || "claude-opus-4-8");
+  }
+  async function askAnthropic(key, msgs, system, model) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json", "x-api-key": key,
+        "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({ model, max_tokens: 1024, system, messages: msgs }),
+    });
+    if (!res.ok) throw new Error(`APIエラー ${res.status}: ${(await res.text()).slice(0, 160)}`);
+    const json = await res.json();
+    return (json.content || []).filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+  }
+  async function askGemini(key, msgs, system) {
+    const models = State.data.settings.geminiModel
+      ? [State.data.settings.geminiModel]
+      : ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+    const body = JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: msgs.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+    });
+    let lastErr = null;
+    for (const model of models) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+      const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body });
+      if (res.status === 404) { lastErr = `モデル ${model} は利用不可`; continue; }
+      if (!res.ok) throw new Error(`Geminiエラー ${res.status}: ${(await res.text()).slice(0, 160)}`);
+      const json = await res.json();
+      const text = ((json.candidates || [])[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
+      if (!text) throw new Error("応答が空でした（無料枠の上限などをご確認ください）");
+      return text;
+    }
+    throw new Error(`利用可能なGeminiモデルが見つかりません（${lastErr || "不明"}）`);
+  }
+  // AIに渡す「あなたの状況」コンテキスト
+  function buildContext() {
+    const p = State.data.profile;
+    const log = State.log(todayStr());
+    const t = dayTotals(log);
+    const b = Metrics.burned(p, log.activity);
+    const target = Metrics.targetIntake(p, b.total);
+    const nt = Metrics.nutrientTargets(p, target);
+    const goal = GOALS.find((g) => g.key === p.goal) || GOALS[1];
+    const wk = weeklyBody(7);
+    const proj = weightProjection(30);
+    return [
+      `【利用者プロフィール】${p.sex === "male" ? "男性" : "女性"} ${p.age}歳 身長${p.height}cm 体重${p.weight}kg`,
+      `BMI ${fmt(Metrics.bmi(p), 1)} / 基礎代謝 ${fmt(Metrics.bmr(p))}kcal / 目的「${goal.name}」${p.targetWeight ? ` / 目標体重${p.targetWeight}kg` : ""}`,
+      `【今日の摂取】合計${fmt(t.all.kcal)}kcal（朝${fmt(t.slots.breakfast.kcal)}/昼${fmt(t.slots.lunch.kcal)}/晩${fmt(t.slots.dinner.kcal)}/間食${fmt(t.slots.snack.kcal)}）`,
+      `たんぱく質${fmt(t.all.p)}g(目標${fmt(nt.protein)}g) 脂質${fmt(t.all.f)}g 炭水化物${fmt(t.all.c)}g 食物繊維${fmt(t.all.fiber)}g(目標${fmt(nt.fiber)}g) 塩分${fmt(t.all.salt, 1)}g(上限${fmt(nt.saltMax, 1)}g)`,
+      `【今日の消費】${fmt(b.total)}kcal（基礎代謝${fmt(b.bmr)}/生活${fmt(b.neat)}/歩数${fmt(log.activity.steps)}歩=${fmt(b.stepKcal)}/運動${fmt(b.exKcal)}）`,
+      `【目標摂取】${fmt(target)}kcal（残り${fmt(target - t.all.kcal)}kcal）`,
+      `【直近7日】平均睡眠${wk.sleepAvg != null ? fmt(wk.sleepAvg, 1) + "h" : "未記録"} / 平均水分${wk.waterAvg != null ? fmt(wk.waterAvg) + "ml" : "未記録"} / 飲酒${wk.alcoholDays}日 / コーヒー${fmt(wk.coffee)}杯`,
+      proj ? `【体重傾向】${proj.perMonth >= 0 ? "+" : ""}${fmt(proj.perMonth, 1)}kg/月のペース` : "",
+      `【今日食べたもの】${MEAL_SLOTS.map((s) => (log.meals[s.key] || []).map((i) => i.name).join("、")).filter(Boolean).join(" / ") || "まだ記録なし"}`,
+    ].filter(Boolean).join("\n");
+  }
+  const AI_SYSTEM = "あなたは経験豊富な管理栄養士・健康アドバイザーです。利用者の実データにもとづき、"
+    + "日本の食生活に合わせた具体的で実行しやすい助言を、簡潔な日本語で行ってください。"
+    + "医療行為の断定は避け、必要なら受診を促してください。回答は300字程度、箇条書きを活用してください。";
+
   function showPhotoResult(items, slot, modal, statusEl, resultEl) {
     if (!items.length) { statusEl.innerHTML = `<p class="muted">料理を検出できませんでした。</p>`; return; }
     statusEl.innerHTML = `<p class="good-box">✅ ${items.length}品を検出しました。内容を確認して追加してください。</p>`;
@@ -1189,7 +1294,9 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         <div class="row wrap" style="gap:8px;margin:6px 0 12px">
           <input type="date" id="dash-date" value="${date}" max="${todayStr()}">
           ${isToday ? "" : `<button class="btn sm" id="dash-today">今日に戻る</button>`}
+          <button class="btn sm ai" id="dash-recipe">🍽 残りで何食べる？</button>
         </div>
+        ${isToday ? mealNudge(log) : ""}
 
         <div class="kpi-grid">
           <div class="kpi"><div class="kpi-l">摂取カロリー</div><div class="kpi-v">${fmt(totals.all.kcal)}<small>kcal</small></div></div>
@@ -1234,6 +1341,18 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     $("#dash-date").onchange = (e) => { dashDate = e.target.value; renderDashboard(view); };
     const backBtn = $("#dash-today");
     if (backBtn) backBtn.onclick = () => { dashDate = todayStr(); renderDashboard(view); };
+    $("#dash-recipe").onclick = () => openRecipeSuggest();
+    const nb = $("#nudge-go"); if (nb) nb.onclick = () => Nav.go("record");
+  }
+  // 未記録の食事をやさしく促すバナー（時刻を過ぎた食事だけ対象）
+  function mealNudge(log) {
+    if (State.data.settings.nudge === false) return "";
+    const h = new Date().getHours();
+    const due = [["breakfast", "朝食", 10], ["lunch", "昼食", 14], ["dinner", "夕食", 21]];
+    const missing = due.filter(([k, , t]) => h >= t && !(log.meals[k] || []).length).map(([, l]) => l);
+    if (!missing.length) return "";
+    return `<div class="nudge">🔔 <b>${missing.join("・")}</b> がまだ記録されていません。
+      <button class="btn sm" id="nudge-go">記録する</button></div>`;
   }
 
   function renderBalanceBar(intake, burned, target, tone) {
@@ -1378,6 +1497,166 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
   }
 
   // ==========================================================================
+  //  AI相談タブ
+  // ==========================================================================
+  const QUICK_ASKS = [
+    "今日の食事内容を評価して、改善点を教えて",
+    "次の食事は何を食べたらいい？",
+    "この1週間の傾向を分析して",
+    "外食が続くときの選び方を教えて",
+    "減量が停滞しているときの対処法は？",
+  ];
+  function renderChat(view) {
+    const chat = State.data.chat || [];
+    const hasKey = !!activeKey();
+    view.innerHTML = `
+      <section class="card">
+        <div class="row between wrap">
+          <h2>💬 AIに相談</h2>
+          ${chat.length ? `<button class="btn sm" id="ch-clear">履歴を消す</button>` : ""}
+        </div>
+        <p class="muted">あなたの記録（体重・BMI・今日の摂取と消費・栄養の過不足・直近の傾向）をふまえて回答します。</p>
+        ${hasKey ? "" : `<p class="warn-box">⚠️ 設定タブでAPIキーを登録すると利用できます（無料のGoogle Geminiも選べます）。</p>`}
+
+        <div class="row wrap" style="margin:10px 0">
+          <button class="btn sm primary" id="ch-recipe">🍽 残りカロリーでレシピ提案</button>
+        </div>
+        <div class="row wrap">
+          ${QUICK_ASKS.map((q, i) => `<button class="btn sm" data-ask="${i}">${q}</button>`).join("")}
+        </div>
+
+        <div id="ch-log" class="chat-log">
+          ${chat.length ? chat.map((m) => `<div class="msg ${m.role}">${escapeHtml(m.content).replace(/\n/g, "<br>")}</div>`).join("")
+            : `<p class="muted">上のボタンから聞くか、下に自由に質問を入力してください。</p>`}
+        </div>
+        <div class="row" style="margin-top:10px">
+          <input type="text" id="ch-input" placeholder="例: 夜遅い食事でも太りにくくするには？" autocomplete="off">
+          <button class="btn primary" id="ch-send">送信</button>
+        </div>
+      </section>`;
+
+    const send = async (text) => {
+      if (!text) return;
+      if (!activeKey()) { alert("設定タブでAPIキーを登録してください。"); return; }
+      State.data.chat = (State.data.chat || []).concat({ role: "user", content: text }).slice(-40);
+      State.save(); renderChat(view);
+      const logEl = $("#ch-log");
+      logEl.insertAdjacentHTML("beforeend", `<div class="msg assistant loading" id="ch-wait">🤖 考えています…</div>`);
+      logEl.scrollTop = logEl.scrollHeight;
+      try {
+        const answer = await askAI(
+          [{ role: "user", content: `${buildContext()}\n\n【質問】${text}` }].concat(
+            (State.data.chat || []).slice(-6, -1).map((m) => ({ role: m.role, content: m.content }))),
+          AI_SYSTEM);
+        State.data.chat = (State.data.chat || []).concat({ role: "assistant", content: answer }).slice(-40);
+        State.save();
+      } catch (e) {
+        State.data.chat = (State.data.chat || []).concat({ role: "assistant", content: `⚠️ ${e.message}` }).slice(-40);
+        State.save();
+      }
+      renderChat(view);
+      const l2 = $("#ch-log"); if (l2) l2.scrollTop = l2.scrollHeight;
+    };
+    $("#ch-send").onclick = () => { const el = $("#ch-input"); const v = el.value.trim(); el.value = ""; send(v); };
+    $("#ch-input").onkeydown = (e) => { if (e.key === "Enter") $("#ch-send").click(); };
+    $("[data-ask]").forEach((b) => (b.onclick = () => send(QUICK_ASKS[parseInt(b.dataset.ask, 10)])));
+    $("#ch-recipe").onclick = () => openRecipeSuggest();
+    const cl = $("#ch-clear"); if (cl) cl.onclick = () => { State.data.chat = []; State.save(); renderChat(view); };
+    const lg = $("#ch-log"); if (lg) lg.scrollTop = lg.scrollHeight;
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // ---- 残りカロリーからのレシピ提案 ---------------------------------------
+  // 内蔵DBから「主食＋主菜＋副菜」の組み合わせを作り、残りkcalと不足栄養で採点
+  function suggestCombos(remainKcal, needP, needFiber) {
+    const cands = allFoods();
+    const mains = cands.filter((f) => f.cat === "主食");
+    const dishes = cands.filter((f) => f.cat === "主菜");                    // 献立の主菜
+    const prots = dishes.concat(cands.filter((f) => f.cat === "プロテイン")); // 軽food用（飲料も可）
+    const sides = cands.filter((f) => f.cat === "副菜" || f.cat === "汁物");
+    const out = [];
+    const push = (items) => {
+      const s = items.reduce((a, f) => ({
+        kcal: a.kcal + f.kcal, p: a.p + f.p, f: a.f + f.f,
+        fiber: a.fiber + f.fiber, salt: a.salt + f.salt,
+      }), { kcal: 0, p: 0, f: 0, fiber: 0, salt: 0 });
+      if (s.kcal > remainKcal || s.kcal < remainKcal * 0.55) return;
+      const score = Math.min(s.p, needP) / Math.max(needP, 1) * 2
+        + Math.min(s.fiber, needFiber) / Math.max(needFiber, 1)
+        - s.salt * 0.09 - Math.abs(remainKcal - s.kcal) / Math.max(remainKcal, 1) * 0.5;
+      out.push({ items, ...s, score });
+    };
+    if (remainKcal >= 450) {
+      mains.forEach((m) => dishes.forEach((pr) => sides.forEach((sd) => push([m, pr, sd]))));
+    }
+    prots.forEach((pr) => sides.forEach((sd) => push([pr, sd])));          // 軽め（主食なし）
+    prots.forEach((pr) => push([pr]));                                      // 単品
+    out.sort((a, b) => b.score - a.score);
+    const seen = new Set(), top = [];
+    for (const c of out) {
+      const key = c.items.map((i) => i.name).sort().join("|");
+      const head = c.items[0].name;
+      if (seen.has(key) || seen.has(head)) continue;
+      seen.add(key); seen.add(head); top.push(c);
+      if (top.length >= 4) break;
+    }
+    return top;
+  }
+  function openRecipeSuggest() {
+    const p = State.data.profile;
+    const log = State.log(todayStr());
+    const t = dayTotals(log);
+    const b = Metrics.burned(p, log.activity);
+    const target = Metrics.targetIntake(p, b.total);
+    const nt = Metrics.nutrientTargets(p, target);
+    const remain = Math.max(0, target - t.all.kcal);
+    const needP = Math.max(0, nt.protein - t.all.p);
+    const needFiber = Math.max(0, nt.fiber - t.all.fiber);
+    const combos = suggestCombos(remain, needP, needFiber);
+
+    const modal = makeModal("🍽 残りカロリーでレシピ提案");
+    const body = $(".modal-body", modal);
+    body.innerHTML = `
+      <p class="muted">残り <b>${fmt(remain)}kcal</b>／不足たんぱく質 <b>${fmt(needP)}g</b>／不足食物繊維 <b>${fmt(needFiber)}g</b> に合う組み合わせです。</p>
+      ${remain < 150 ? `<p class="warn-box">目標までの残りが少ないため、汁物やサラダなど軽いものが安心です。</p>` : ""}
+      ${combos.length ? combos.map((c, i) => `
+        <div class="ph-card">
+          <div class="row between"><strong>${c.items.map((x) => x.name).join(" ＋ ")}</strong><span>${fmt(c.kcal)}kcal</span></div>
+          <div class="ph-macros">たんぱく質 ${fmt(c.p, 1)}g ・ 食物繊維 ${fmt(c.fiber, 1)}g ・ 塩分 ${fmt(c.salt, 1)}g</div>
+          <div class="row wrap">
+            <button class="btn sm primary" data-add-combo="${i}">この組み合わせを記録</button>
+          </div>
+        </div>`).join("") : `<p class="muted">条件に合う組み合わせが見つかりませんでした。</p>`}
+      <div class="row wrap" style="margin-top:12px">
+        <button class="btn sm ai" id="rc-ai">🤖 AIに献立を考えてもらう</button>
+      </div>
+      <div id="rc-ai-out"></div>`;
+
+    $("[data-add-combo]", body).forEach((btn) => (btn.onclick = () => {
+      const c = combos[parseInt(btn.dataset.addCombo, 10)];
+      const slotKey = prompt("どの食事に記録しますか？ 1:朝食 2:昼食 3:夕食 4:間食", "3");
+      const map = { "1": "breakfast", "2": "lunch", "3": "dinner", "4": "snack" };
+      const key = map[String(slotKey || "").trim()];
+      if (!key) return;
+      c.items.forEach((f) => State.log(todayStr()).meals[key].push({ ...f, qty: 1, at: Date.now() }));
+      State.save(); modal.remove(); Nav.go("dashboard");
+    }));
+    $("#rc-ai", body).onclick = async () => {
+      const out = $("#rc-ai-out", body);
+      if (!activeKey()) { out.innerHTML = `<p class="warn-box">設定タブでAPIキーを登録してください。</p>`; return; }
+      out.innerHTML = `<p class="loading">🤖 献立を考えています…</p>`;
+      try {
+        const ans = await askAI([{ role: "user", content: `${buildContext()}\n\n`
+          + `【依頼】残り${fmt(remain)}kcal以内で、不足しているたんぱく質${fmt(needP)}gと食物繊維${fmt(needFiber)}gを補える献立を2案。`
+          + `各案は料理名・目安量・推定カロリーを箇条書きで、作り方は1〜2行で簡潔に。` }], AI_SYSTEM);
+        out.innerHTML = `<div class="ph-card">${escapeHtml(ans).replace(/\n/g, "<br>")}</div>`;
+      } catch (e) { out.innerHTML = `<p class="warn-box">${e.message}</p>`; }
+    };
+  }
+
+  // ==========================================================================
   //  推移グラフ（日・週・月・年）
   // ==========================================================================
   let trendPeriod = "day";
@@ -1401,7 +1680,12 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         <div id="chart-tip" class="chart-tip">グラフをタッチすると、その日の詳細が表示されます</div>
         <div class="chart-wrap"><canvas id="chart" height="320"></canvas></div>
         <div id="chart-note" class="muted"></div>
+        <div class="row wrap mt">
+          <button class="btn sm" data-report="7">📄 週次レポート</button>
+          <button class="btn sm" data-report="30">📄 月次レポート</button>
+        </div>
       </section>`;
+    $("[data-report]").forEach((b) => (b.onclick = () => openReport(parseInt(b.dataset.report, 10))));
     $(".seg-btn").forEach((b) => (b.onclick = () => { trendPeriod = b.dataset.p; renderTrend(view); }));
     drawChart();
     attachChartInteraction();
@@ -1641,6 +1925,101 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
   }
 
   // ==========================================================================
+  //  レポート出力（週次・月次／印刷でPDF保存）
+  // ==========================================================================
+  function buildReportData(days) {
+    const p = State.data.profile;
+    const logs = State.data.logs;
+    const rows = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const k = dstr(d);
+      const l = logs[k];
+      if (!l || !dayHasContent(l)) continue;
+      const t = dayTotals(l);
+      const b = Metrics.burned(p, l.activity);
+      rows.push({ date: k, t, burn: b.total, target: Metrics.targetIntake(p, b.total), log: l });
+    }
+    if (!rows.length) return null;
+    const avg = (f) => rows.reduce((a, r) => a + f(r), 0) / rows.length;
+    const weights = rows.filter((r) => r.log.weight != null).map((r) => r.log.weight);
+    const dishes = {};
+    rows.forEach((r) => Object.values(r.log.meals || {}).forEach((items) => (items || []).forEach((it) => {
+      dishes[it.name] = (dishes[it.name] || 0) + 1;
+    })));
+    const top = Object.entries(dishes).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return {
+      days, rows, recorded: rows.length,
+      intake: avg((r) => r.t.all.kcal), burn: avg((r) => r.burn), target: avg((r) => r.target),
+      p: avg((r) => r.t.all.p), f: avg((r) => r.t.all.f), c: avg((r) => r.t.all.c),
+      fiber: avg((r) => r.t.all.fiber), salt: avg((r) => r.t.all.salt),
+      withinTarget: rows.filter((r) => r.t.all.kcal <= r.target).length,
+      weightStart: weights[0] ?? null, weightEnd: weights[weights.length - 1] ?? null,
+      wk: weeklyBody(days), streak: streakDays(), top,
+    };
+  }
+  function reportHtml(r) {
+    const p = State.data.profile;
+    const nt = Metrics.nutrientTargets(p, r.target);
+    const wDiff = (r.weightStart != null && r.weightEnd != null) ? r.weightEnd - r.weightStart : null;
+    const row = (l, v) => `<tr><th>${l}</th><td>${v}</td></tr>`;
+    return `
+      <h2>健康レポート（直近${r.days}日）</h2>
+      <p class="rp-sub">${new Date().toLocaleDateString("ja-JP")} 作成 ／ 記録日数 ${r.recorded}日 ／ 連続記録 ${r.streak}日</p>
+      <h3>カロリー</h3>
+      <table class="rp-tbl">
+        ${row("平均摂取", `${fmt(r.intake)} kcal`)}
+        ${row("平均消費", `${fmt(r.burn)} kcal`)}
+        ${row("平均目標", `${fmt(r.target)} kcal`)}
+        ${row("平均収支", `${r.intake - r.burn >= 0 ? "+" : ""}${fmt(r.intake - r.burn)} kcal`)}
+        ${row("目標内に収まった日", `${r.withinTarget} / ${r.recorded} 日`)}
+      </table>
+      <h3>栄養素（1日平均）</h3>
+      <table class="rp-tbl">
+        ${row("たんぱく質", `${fmt(r.p, 1)} g（目標 ${fmt(nt.protein)} g）`)}
+        ${row("脂質", `${fmt(r.f, 1)} g`)}
+        ${row("炭水化物", `${fmt(r.c, 1)} g`)}
+        ${row("食物繊維", `${fmt(r.fiber, 1)} g（目標 ${fmt(nt.fiber)} g）`)}
+        ${row("食塩相当量", `${fmt(r.salt, 1)} g（上限 ${fmt(nt.saltMax, 1)} g）`)}
+      </table>
+      <h3>からだ</h3>
+      <table class="rp-tbl">
+        ${row("体重", r.weightStart != null ? `${fmt(r.weightStart, 1)} → ${fmt(r.weightEnd, 1)} kg（${wDiff >= 0 ? "+" : ""}${fmt(wDiff, 1)} kg）` : "記録なし")}
+        ${row("BMI", `${fmt(Metrics.bmi(p), 1)}（${Metrics.bmiCategory(Metrics.bmi(p)).label}）`)}
+        ${row("平均睡眠", r.wk.sleepAvg != null ? `${fmt(r.wk.sleepAvg, 1)} 時間` : "記録なし")}
+        ${row("平均水分", r.wk.waterAvg != null ? `${fmt(r.wk.waterAvg)} ml` : "記録なし")}
+        ${row("飲酒", `${r.wk.alcoholDays} 日`)}
+        ${row("コーヒー", `${fmt(r.wk.coffee)} 杯`)}
+      </table>
+      <h3>よく食べたもの</h3>
+      <ol class="rp-list">${r.top.map(([n, c]) => `<li>${escapeHtml(n)} — ${c}回</li>`).join("") || "<li>記録なし</li>"}</ol>
+      <h3>日別の記録</h3>
+      <table class="rp-tbl rp-days">
+        <tr><th>日付</th><th>摂取</th><th>消費</th><th>体重</th></tr>
+        ${r.rows.map((x) => `<tr><td>${x.date}</td><td>${fmt(x.t.all.kcal)}</td><td>${fmt(x.burn)}</td><td>${x.log.weight != null ? fmt(x.log.weight, 1) : "—"}</td></tr>`).join("")}
+      </table>
+      <p class="rp-note">※ 栄養値は概算です。医療上の判断は医師・管理栄養士にご相談ください。</p>`;
+  }
+  function openReport(days) {
+    const r = buildReportData(days);
+    if (!r) { alert("この期間の記録がありません。"); return; }
+    const html = reportHtml(r);
+    let printArea = document.getElementById("report-print");
+    if (!printArea) {
+      printArea = document.createElement("div");
+      printArea.id = "report-print";
+      document.body.appendChild(printArea);
+    }
+    printArea.innerHTML = html;
+    const modal = makeModal(`📄 ${days === 7 ? "週次" : "月次"}レポート`);
+    const body = $(".modal-body", modal);
+    body.innerHTML = `<div class="report-view">${html}</div>
+      <button class="btn primary block" id="rp-print">印刷 / PDFで保存</button>
+      <p class="muted">iPhoneでは「印刷」画面から共有ボタン →「PDFとして保存」でファイルに残せます。</p>`;
+    $("#rp-print", body).onclick = () => window.print();
+  }
+
+  // ==========================================================================
   //  設定
   // ==========================================================================
   // AIサービスの選択肢定義（1つのドロップダウンで3択）
@@ -1701,6 +2080,18 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       </section>
 
       <section class="card">
+        <h3>🔔 記録のリマインダー</h3>
+        <label class="row" style="flex-direction:row;align-items:center;gap:8px">
+          <input type="checkbox" id="set-nudge" ${s.nudge === false ? "" : "checked"} style="width:auto">
+          <span>アプリ内で未記録の食事をお知らせする（朝10時／昼14時／夜21時以降）</span>
+        </label>
+        <p class="muted">iOSではWebアプリからのプッシュ通知が制限されるため、<b>時刻通知は「ショートカット」アプリの
+          オートメーション</b>で設定するのが確実です。手順: ショートカット →「オートメーション」→ ＋ →「時刻」→
+          時刻を指定 →「通知を表示」（例: 記録してね）＋「URLを開く」で
+          <code>${location.origin}${location.pathname}</code> を指定。</p>
+      </section>
+
+      <section class="card">
         <h3>📲 iPhoneヘルスケアの歩数を取り込む</h3>
         <p class="muted">SafariはiPhoneのヘルスケアを直接読めないため、「ショートカット」アプリで橋渡しします。
           下のURLを歩数付きで開くと、その日の歩数を自動記録します（末尾の数字が歩数）。</p>
@@ -1743,6 +2134,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       saveKeys();
       State.save(); alert("保存しました。選択中のサービスとキーで解析します。");
     };
+    $("#set-nudge").onchange = (e) => { State.data.settings.nudge = e.target.checked; State.save(); };
     $("#hk-copy").onclick = () => {
       const url = `${location.origin}${location.pathname}?steps=`;
       const done = () => alert(`コピーしました:\n${url}[歩数]\n\n末尾に歩数を付けて開くと記録されます。`);

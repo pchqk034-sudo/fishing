@@ -187,6 +187,39 @@
     .ph-img { width:100%; max-height:220px; object-fit:cover; border-radius:12px; margin:10px 0; }
     .ph-card { background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:10px; }
     .ph-macros { font-size:12px; color:var(--muted); margin:4px 0; }
+    /* AIチャット */
+    .chat-log { max-height:52vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px;
+      margin-top:12px; padding:10px; background:var(--bg); border:1px solid var(--line); border-radius:12px; }
+    .msg { padding:9px 12px; border-radius:12px; font-size:14px; max-width:88%; white-space:normal; line-height:1.6; }
+    .msg.user { align-self:flex-end; background:var(--brand); color:#fff; border-bottom-right-radius:4px; }
+    .msg.assistant { align-self:flex-start; background:var(--card); border:1px solid var(--line); border-bottom-left-radius:4px; }
+    #ch-input { flex:1; }
+
+    /* 未記録リマインダー */
+    .nudge { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13.5px;
+      background:rgba(217,140,23,.12); border:1px solid var(--warn); border-radius:10px; padding:10px 12px; margin-bottom:12px; }
+
+    /* レポート */
+    .report-view { font-size:13.5px; }
+    .report-view h2 { font-size:17px; margin:0 0 4px; }
+    .report-view h3 { font-size:14px; margin:16px 0 6px; padding-bottom:4px; border-bottom:1px solid var(--line); }
+    .rp-sub { color:var(--muted); font-size:12px; margin:0 0 8px; }
+    .rp-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+    .rp-tbl th, .rp-tbl td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); }
+    .rp-tbl th { color:var(--muted); font-weight:600; white-space:nowrap; }
+    .rp-days td, .rp-days th { font-variant-numeric:tabular-nums; }
+    .rp-list { margin:6px 0 0 20px; padding:0; font-size:13px; }
+    .rp-note { color:var(--muted); font-size:11.5px; margin-top:14px; }
+    #report-print { display:none; }
+    @media print {
+      #app, .modal-bg { display:none !important; }
+      #report-print { display:block !important; padding:16px; color:#000; background:#fff; font-size:12px; }
+      #report-print h2 { font-size:16px; } #report-print h3 { font-size:13px; margin:14px 0 5px; border-bottom:1px solid #ccc; }
+      #report-print table { width:100%; border-collapse:collapse; }
+      #report-print th, #report-print td { border-bottom:1px solid #ddd; padding:4px 6px; text-align:left; }
+      body { background:#fff; }
+    }
+
     .urlbox { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px;
       font-size:12px; word-break:break-all; font-family:ui-monospace,monospace; }
     code { background:var(--bg); border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:12px; word-break:break-all; }
@@ -194,7 +227,7 @@
 </head>
 <body>
   <div id="app"></div>
-  <script src="data.js?v=18"></script>
-  <script src="app.js?v=18"></script>
+  <script src="data.js?v=19"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>
