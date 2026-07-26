@@ -96,6 +96,24 @@ const FOODS = [
   // --- コーヒー・カフェ ---
   { name: "コーヒー(ブラック)",     cat: "飲料", unit: "1杯 150ml", kcal: 6, p: 0.3, f: 0.0, c: 1.1, fiber: 0.0, salt: 0.0 },
   { name: "カフェラテ",             cat: "飲料", unit: "1杯 200ml", kcal: 120, p: 6.5, f: 6.5, c: 9.5, fiber: 0.0, salt: 0.2 },
+  { name: "カフェラテ(トール)",     cat: "飲料", unit: "355ml", kcal: 180, p: 9.5, f: 9.5, c: 14.0, fiber: 0.0, salt: 0.3 },
+  { name: "微糖缶コーヒー",         cat: "飲料", unit: "185ml", kcal: 35, p: 1.0, f: 0.6, c: 6.5, fiber: 0.0, salt: 0.1 },
+
+  // --- お酒 ---
+  { name: "ハイボール",             cat: "飲料", unit: "1杯 350ml", kcal: 100, p: 0.0, f: 0.0, c: 0.0, fiber: 0.0, salt: 0.0 },
+  { name: "レモンサワー",           cat: "飲料", unit: "1杯 350ml", kcal: 175, p: 0.0, f: 0.0, c: 12.0, fiber: 0.0, salt: 0.0 },
+  { name: "焼酎(水割り)",           cat: "飲料", unit: "1杯 90ml", kcal: 130, p: 0.0, f: 0.0, c: 0.0, fiber: 0.0, salt: 0.0 },
+  { name: "ワイン(グラス)",         cat: "飲料", unit: "120ml", kcal: 88, p: 0.1, f: 0.0, c: 1.8, fiber: 0.0, salt: 0.0 },
+
+  // --- チェーン店・コンビニ ---
+  { name: "ビッグマック",           cat: "外食", unit: "1個", kcal: 526, p: 26.0, f: 28.3, c: 41.8, fiber: 2.5, salt: 2.5 },
+  { name: "マックフライポテトM",     cat: "外食", unit: "1個", kcal: 410, p: 5.3, f: 19.6, c: 51.0, fiber: 4.5, salt: 0.7 },
+  { name: "チキンマックナゲット5個", cat: "外食", unit: "5個", kcal: 270, p: 15.8, f: 17.2, c: 13.3, fiber: 0.8, salt: 1.4 },
+  { name: "牛丼(並盛)",             cat: "外食", unit: "1杯", kcal: 635, p: 22.9, f: 20.4, c: 89.0, fiber: 2.0, salt: 2.7 },
+  { name: "コンビニおにぎり(ツナマヨ)", cat: "外食", unit: "1個", kcal: 234, p: 5.5, f: 7.6, c: 36.0, fiber: 0.8, salt: 1.1 },
+  { name: "からあげクン(5個)",      cat: "外食", unit: "1袋", kcal: 220, p: 12.0, f: 14.0, c: 11.0, fiber: 0.5, salt: 1.4 },
+  { name: "カツ丼",                 cat: "外食", unit: "1杯", kcal: 890, p: 33.0, f: 32.0, c: 110.0, fiber: 3.0, salt: 3.5 },
+  { name: "回転寿司(10皿)",         cat: "外食", unit: "10皿", kcal: 600, p: 40.0, f: 8.0, c: 88.0, fiber: 1.0, salt: 5.0 },
 ];
 
 // 運動MET値: 単発の運動を「運動強度」として分類（消費kcal = MET × 体重kg × 時間h × 1.05）

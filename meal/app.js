@@ -59,6 +59,13 @@
       if (!l.meals) l.meals = { breakfast: [], lunch: [], dinner: [], snack: [] };
       if (!l.activity) l.activity = { steps: 0, behavior: BEHAVIOR[0].name, exercises: [] };
       if (!("weight" in l)) l.weight = null;
+      // からだの記録（水分ml・睡眠h・血圧・血糖・体脂肪率・ウエスト）
+      if (!("water" in l)) l.water = 0;
+      if (!("sleep" in l)) l.sleep = null;
+      if (!("bp" in l)) l.bp = null;         // {sys, dia}
+      if (!("glucose" in l)) l.glucose = null;
+      if (!("bodyFat" in l)) l.bodyFat = null;
+      if (!("waist" in l)) l.waist = null;
       return l;
     },
   };
@@ -133,14 +140,91 @@
     const a = l.activity || {};
     if ((a.steps || 0) > 0) return true;
     if ((a.exercises || []).length > 0) return true;
-    return l.weight != null;
+    if (l.weight != null) return true;
+    if ((l.water || 0) > 0) return true;
+    return l.sleep != null || l.bp != null || l.glucose != null || l.bodyFat != null || l.waist != null;
   }
+
+  // ---- 継続・予測などのヘルパー -------------------------------------------
+  const dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // 連続記録日数（今日 or 昨日を起点に遡る）
+  function streakDays() {
+    const logs = State.data.logs;
+    const has = (d) => dayHasContent(logs[dstr(d)]);
+    const start = new Date();
+    if (!has(start)) { start.setDate(start.getDate() - 1); if (!has(start)) return 0; }
+    let n = 0; const d = new Date(start);
+    while (has(d)) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+  // 最後に食べた時刻（断食タイマー用）
+  function lastMealAt() {
+    let max = 0;
+    Object.values(State.data.logs).forEach((l) => {
+      if (!l.meals) return;
+      Object.values(l.meals).forEach((items) => (items || []).forEach((it) => {
+        if (it.at && it.at > max) max = it.at;
+      }));
+    });
+    return max || null;
+  }
+  // 体重の直近傾向から先の体重を予測（最小二乗法）
+  function weightProjection(days = 30) {
+    const pts = [];
+    Object.keys(State.data.logs).sort().forEach((k) => {
+      const l = State.data.logs[k];
+      if (l && l.weight != null) pts.push({ t: new Date(k).getTime() / 86400000, w: l.weight });
+    });
+    const recent = pts.slice(-14);
+    if (recent.length < 3) return null;
+    const n = recent.length;
+    const mx = recent.reduce((a, b) => a + b.t, 0) / n;
+    const my = recent.reduce((a, b) => a + b.w, 0) / n;
+    let num = 0, den = 0;
+    recent.forEach(({ t, w }) => { num += (t - mx) * (w - my); den += (t - mx) ** 2; });
+    if (!den) return null;
+    // 短期の傾きをそのまま外挿すると非現実的になるため、±4kg/月に丸める
+    const raw = num / den;                                      // kg/日
+    const slope = Math.max(-4 / 30, Math.min(4 / 30, raw));     // クランプ後 kg/日
+    const last = recent[recent.length - 1].w;
+    const res = { slope, raw, capped: Math.abs(raw - slope) > 1e-9,
+      perMonth: slope * 30, predicted: last + slope * days, days, current: last, etaDays: null };
+    const tw = State.data.profile && State.data.profile.targetWeight;
+    if (tw && Math.abs(slope) > 0.002 && (tw - last) / slope > 0) res.etaDays = Math.round((tw - last) / slope);
+    return res;
+  }
+  // 直近n日の集計（水分・睡眠・お酒・カフェイン）
+  function weeklyBody(n = 7) {
+    const logs = State.data.logs;
+    let water = 0, wN = 0, sleep = 0, sN = 0, alcoholDays = 0, alcoholKcal = 0, coffee = 0;
+    const alcoholRe = /ビール|日本酒|ワイン|ハイボール|焼酎|サワー|チューハイ|酒/;
+    const coffeeRe = /コーヒー|カフェラテ|ラテ/;
+    for (let i = 0; i < n; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const l = logs[dstr(d)];
+      if (!l) continue;
+      if ((l.water || 0) > 0) { water += l.water; wN++; }
+      if (l.sleep != null) { sleep += l.sleep; sN++; }
+      let dayAlc = 0;
+      Object.values(l.meals || {}).forEach((items) => (items || []).forEach((it) => {
+        if (alcoholRe.test(it.name)) { dayAlc += it.kcal * it.qty; }
+        if (coffeeRe.test(it.name)) coffee += it.qty;
+      }));
+      if (dayAlc > 0) { alcoholDays++; alcoholKcal += dayAlc; }
+    }
+    return {
+      waterAvg: wN ? water / wN : null, sleepAvg: sN ? sleep / sN : null,
+      alcoholDays, alcoholKcal, coffee, days: n,
+    };
+  }
+  const waterTarget = () => Math.round((State.data.profile ? State.data.profile.weight : 60) * 35);
 
   // ---- ナビゲーション -----------------------------------------------------
   const Nav = {
     tabs: [
       { key: "dashboard", label: "ダッシュボード", icon: "📊" },
       { key: "record", label: "記録する", icon: "✍️" },
+      { key: "body", label: "からだ", icon: "❤️" },
       { key: "trend", label: "推移グラフ", icon: "📈" },
       { key: "profile", label: "プロフィール", icon: "👤" },
       { key: "settings", label: "設定", icon: "⚙️" },
@@ -171,6 +255,7 @@
     ({
       dashboard: renderDashboard,
       record: renderRecord,
+      body: renderBody,
       trend: renderTrend,
       profile: renderProfile,
       settings: renderSettings,
@@ -301,6 +386,15 @@
     MEAL_SLOTS.forEach((s) => {
       $(`#add-${s.key}`).onclick = () => openFoodPicker(s);
       $(`#photo-${s.key}`).onclick = () => openPhotoPicker(s);
+      const again = $(`#again-${s.key}`);
+      if (again) again.onclick = () => {
+        const prev = lastSameSlot(s.key);
+        if (!prev) return;
+        const names = prev.items.map((it) => it.name).join("、");
+        if (!confirm(`${prev.date} の${s.label}（${names}）をコピーしますか？`)) return;
+        prev.items.forEach((it) => log.meals[s.key].push({ ...it, at: Date.now() }));
+        State.save(); render();
+      };
       $$(`[data-del="${s.key}"]`).forEach((btn) => {
         btn.onclick = () => {
           log.meals[s.key].splice(parseInt(btn.dataset.idx, 10), 1);
@@ -345,11 +439,21 @@
             <span>${fmt(it.kcal * it.qty)}kcal <button data-del="${s.key}" data-idx="${i}">×</button></span></li>`).join("")
             : `<li class="muted">まだ記録がありません</li>`}
         </ul>
-        <div class="row">
+        <div class="row wrap">
           <button class="btn sm" id="add-${s.key}">＋ 料理を選ぶ</button>
           <button class="btn sm ai" id="photo-${s.key}">📷 写真で解析</button>
+          ${lastSameSlot(s.key) ? `<button class="btn sm" id="again-${s.key}">🔁 前回と同じ</button>` : ""}
         </div>
       </div>`;
+  }
+  // その食事枠で最後に記録した内容（recordDateより前の直近日）
+  function lastSameSlot(slotKey) {
+    const dates = Object.keys(State.data.logs).filter((k) => k < recordDate).sort().reverse();
+    for (const k of dates) {
+      const items = (State.data.logs[k].meals || {})[slotKey];
+      if (items && items.length) return { date: k, items };
+    }
+    return null;
   }
 
   // 料理の使用回数を集計（全記録から料理名ごとにカウント）
@@ -410,7 +514,7 @@
           if (!f) return;
           const qty = parseFloat(prompt(`「${f.name}」の量（${f.unit} を1として）`, "1"));
           if (!(qty > 0)) return;
-          State.log(recordDate).meals[slot.key].push({ ...f, qty });
+          State.log(recordDate).meals[slot.key].push({ ...f, qty, at: Date.now() });
           State.save(); modal.remove(); render();
         };
       });
@@ -547,7 +651,7 @@
         State.log(recordDate).meals[slot.key].push({
           name: it.name || "料理", unit: "AI推定 1食",
           kcal: it.kcal || 0, p: it.p || 0, f: it.f || 0, c: it.c || 0,
-          fiber: it.fiber || 0, salt: it.salt || 0, qty: 1,
+          fiber: it.fiber || 0, salt: it.salt || 0, qty: 1, at: Date.now(),
         });
         addCustomFood(it); // 次回から「料理を選ぶ」候補にも表示
         State.save();
@@ -555,6 +659,147 @@
         render();
       };
     });
+  }
+
+  // ==========================================================================
+  //  からだタブ（水分・睡眠・血圧・血糖・体組成・断食・予測）
+  // ==========================================================================
+  let bodyDate = todayStr();
+  function renderBody(view) {
+    const p = State.data.profile;
+    const log = State.log(bodyDate);
+    const isToday = bodyDate === todayStr();
+    const wt = waterTarget();
+    const wPct = Math.min(100, (log.water / wt) * 100);
+    const wk = weeklyBody(7);
+    const proj = weightProjection(30);
+    const streak = streakDays();
+    const lastMeal = lastMealAt();
+    const fastH = lastMeal ? (Date.now() - lastMeal) / 3600000 : null;
+
+    view.innerHTML = `
+      <section class="card">
+        <div class="row between wrap">
+          <h2>からだの記録</h2>
+          <div class="row wrap" style="gap:8px">
+            <input type="date" id="bd-date" value="${bodyDate}" max="${todayStr()}">
+            ${isToday ? "" : `<button class="btn sm" id="bd-today">今日に戻る</button>`}
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi ${streak >= 3 ? "good" : ""}"><div class="kpi-l">連続記録</div><div class="kpi-v">${streak}<small>日</small></div></div>
+          ${isToday && fastH != null ? `<div class="kpi ${fastH >= 12 ? "good" : "info"}"><div class="kpi-l">最後の食事から</div><div class="kpi-v">${fmt(fastH, 1)}<small>時間</small></div></div>` : ""}
+          ${proj ? `<div class="kpi ${proj.perMonth < 0 ? "good" : proj.perMonth > 0.5 ? "bad" : "warn"}">
+            <div class="kpi-l">1ヶ月後の予測体重</div><div class="kpi-v">${fmt(proj.predicted, 1)}<small>kg</small></div>
+            <div class="muted">${proj.perMonth >= 0 ? "+" : ""}${fmt(proj.perMonth, 1)}kg/月</div></div>` : ""}
+        </div>
+        ${proj && proj.etaDays != null && proj.etaDays <= 730
+          ? `<p class="good-box">このペースなら目標体重(${p.targetWeight}kg)まで約 <b>${proj.etaDays}日</b>（約${fmt(proj.etaDays / 30, 1)}ヶ月）です。</p>` : ""}
+      </section>
+
+      <section class="card">
+        <h3>💧 水分</h3>
+        <div class="balrow">
+          <span class="bl">${fmt(log.water)}<small>ml</small></span>
+          <div class="track"><div class="fill ${log.water >= wt ? "tone-info" : "tone-warn"}" style="width:${wPct}%"></div></div>
+          <span class="bv">/${fmt(wt)}</span>
+        </div>
+        <div class="row wrap" style="margin-top:10px">
+          <button class="btn sm" data-water="200">＋200ml</button>
+          <button class="btn sm" data-water="350">＋350ml</button>
+          <button class="btn sm" data-water="500">＋500ml</button>
+          <button class="btn sm danger" data-water="reset">リセット</button>
+        </div>
+        <p class="muted">目安は体重×35ml（あなたは約${fmt(wt)}ml/日）。コーヒー・お茶も水分に含めて構いません。</p>
+      </section>
+
+      <section class="card">
+        <h3>😴 睡眠・体組成・採寸</h3>
+        <div class="form-grid">
+          <label>睡眠時間 (時間)<input type="number" id="bd-sleep" value="${log.sleep ?? ""}" min="0" max="24" step="0.5" placeholder="例: 7"></label>
+          <label>体脂肪率 (%)<input type="number" id="bd-fat" value="${log.bodyFat ?? ""}" min="3" max="60" step="0.1" placeholder="任意"></label>
+          <label>ウエスト (cm)<input type="number" id="bd-waist" value="${log.waist ?? ""}" min="40" max="200" step="0.1" placeholder="任意"></label>
+        </div>
+        <h3 class="mt">🩺 血圧・血糖値</h3>
+        <div class="form-grid">
+          <label>血圧 上 (mmHg)<input type="number" id="bd-sys" value="${log.bp ? log.bp.sys : ""}" min="60" max="250" placeholder="例: 120"></label>
+          <label>血圧 下 (mmHg)<input type="number" id="bd-dia" value="${log.bp ? log.bp.dia : ""}" min="40" max="150" placeholder="例: 78"></label>
+          <label>血糖値 (mg/dL)<input type="number" id="bd-glu" value="${log.glucose ?? ""}" min="40" max="500" placeholder="任意"></label>
+        </div>
+        ${log.bp ? bpComment(log.bp) : ""}
+        ${log.glucose != null ? glucoseComment(log.glucose) : ""}
+        ${p.sex === "female" ? `
+          <h3 class="mt">🌸 生理周期</h3>
+          <div class="form-grid">
+            <label>最終開始日<input type="date" id="bd-cycle" value="${State.data.settings.cycleStart || ""}" max="${todayStr()}"></label>
+            <label>周期の長さ (日)<input type="number" id="bd-cyclen" value="${State.data.settings.cycleLen || 28}" min="20" max="45"></label>
+          </div>
+          ${cyclePhase()}` : ""}
+        <button class="btn primary block" id="bd-save">からだの記録を保存</button>
+      </section>
+
+      <section class="card">
+        <h3>📅 直近7日のサマリー</h3>
+        <div class="breakdown">
+          <span>平均睡眠 <b>${wk.sleepAvg != null ? fmt(wk.sleepAvg, 1) + "h" : "—"}</b></span>
+          <span>平均水分 <b>${wk.waterAvg != null ? fmt(wk.waterAvg) + "ml" : "—"}</b></span>
+          <span>飲酒 <b>${wk.alcoholDays}日</b>${wk.alcoholKcal ? `(${fmt(wk.alcoholKcal)}kcal)` : ""}</span>
+          <span>コーヒー <b>${fmt(wk.coffee)}杯</b></span>
+        </div>
+        ${bodyAdvice(wk, log)}
+      </section>`;
+
+    $("#bd-date").onchange = (e) => { bodyDate = e.target.value; renderBody(view); };
+    const bt = $("#bd-today"); if (bt) bt.onclick = () => { bodyDate = todayStr(); renderBody(view); };
+    $$("[data-water]").forEach((b) => (b.onclick = () => {
+      const v = b.dataset.water;
+      log.water = v === "reset" ? 0 : (log.water || 0) + parseInt(v, 10);
+      State.save(); renderBody(view);
+    }));
+    $("#bd-save").onclick = () => {
+      const num = (id) => { const v = parseFloat($(id).value); return v > 0 ? v : null; };
+      log.sleep = num("#bd-sleep"); log.bodyFat = num("#bd-fat"); log.waist = num("#bd-waist");
+      const sys = num("#bd-sys"), dia = num("#bd-dia");
+      log.bp = sys && dia ? { sys, dia } : null;
+      log.glucose = num("#bd-glu");
+      if ($("#bd-cycle")) {
+        State.data.settings.cycleStart = $("#bd-cycle").value || null;
+        State.data.settings.cycleLen = parseInt($("#bd-cyclen").value, 10) || 28;
+      }
+      State.save(); alert("保存しました。"); renderBody(view);
+    };
+  }
+  function bpComment(bp) {
+    let tone = "good", msg = "正常範囲です。";
+    if (bp.sys >= 140 || bp.dia >= 90) { tone = "bad"; msg = "高血圧の範囲です。減塩を意識し、継続する場合は受診を検討してください。"; }
+    else if (bp.sys >= 130 || bp.dia >= 85) { tone = "warn"; msg = "やや高めです。塩分と体重の管理を。"; }
+    return `<div class="advice-item ${tone}"><span class="ai-icon">${adviceIcon(tone)}</span><span>血圧 ${bp.sys}/${bp.dia} — ${msg}</span></div>`;
+  }
+  function glucoseComment(g) {
+    let tone = "good", msg = "正常範囲です（空腹時基準）。";
+    if (g >= 126) { tone = "bad"; msg = "高い値です。糖質量の見直しと受診を検討してください。"; }
+    else if (g >= 110) { tone = "warn"; msg = "境界域です。主食量や間食のとり方を見直しましょう。"; }
+    return `<div class="advice-item ${tone}"><span class="ai-icon">${adviceIcon(tone)}</span><span>血糖値 ${g}mg/dL — ${msg}</span></div>`;
+  }
+  function cyclePhase() {
+    const s = State.data.settings;
+    if (!s.cycleStart) return `<p class="muted">最終開始日を入れると、周期に応じた体重変動の目安を表示します。</p>`;
+    const len = s.cycleLen || 28;
+    const day = Math.floor((new Date(todayStr()) - new Date(s.cycleStart)) / 86400000) % len + 1;
+    let phase = "卵胞期", note = "代謝が上がりやすく、減量に取り組みやすい時期です。";
+    if (day <= 5) { phase = "月経期"; note = "鉄分を意識し、無理な制限は避けましょう。"; }
+    else if (day >= len - 7) { phase = "黄体期"; note = "水分を溜めやすく体重が0.5〜1.5kg増えて見えることがあります。数値に一喜一憂しないで大丈夫です。"; }
+    return `<div class="advice-item info"><span class="ai-icon">🌸</span><span>周期${day}日目（${phase}）— ${note}</span></div>`;
+  }
+  function bodyAdvice(wk, log) {
+    const a = [];
+    if (wk.sleepAvg != null && wk.sleepAvg < 6.5) a.push(["warn", "睡眠が平均6.5時間未満です。睡眠不足は食欲ホルモンを乱し、間食が増えやすくなります。"]);
+    if (wk.waterAvg != null && wk.waterAvg < waterTarget() * 0.7) a.push(["warn", "水分がやや不足気味です。こまめな摂取が代謝と満腹感の助けになります。"]);
+    if (wk.alcoholDays >= 5) a.push(["warn", `飲酒が7日中${wk.alcoholDays}日あります。週2日以上の休肝日をつくりましょう。`]);
+    if (wk.coffee >= 21) a.push(["info", "コーヒーが1日平均3杯以上です。夕方以降は睡眠に影響することがあります。"]);
+    if (!a.length) a.push(["good", "睡眠・水分・嗜好品のバランスは良好です。この習慣を維持しましょう。"]);
+    return a.map(([t, m]) => `<div class="advice-item ${t}"><span class="ai-icon">${adviceIcon(t)}</span><span>${m}</span></div>`).join("");
   }
 
   // ==========================================================================
@@ -597,6 +842,14 @@
         </div>
 
         ${renderBalanceBar(totals.all.kcal, burned.total, target, balTone)}
+
+        <h3 class="mt">からだ・継続</h3>
+        <div class="breakdown">
+          <span>連続記録 <b>${streakDays()}日</b></span>
+          <span>水分 <b>${fmt(log.water)}/${fmt(waterTarget())}ml</b></span>
+          ${log.sleep != null ? `<span>睡眠 <b>${fmt(log.sleep, 1)}h</b></span>` : ""}
+          ${(() => { const lm = lastMealAt(); return isToday && lm ? `<span>最後の食事から <b>${fmt((Date.now() - lm) / 3600000, 1)}h</b></span>` : ""; })()}
+        </div>
 
         <h3 class="mt">消費の内訳</h3>
         <div class="breakdown">
@@ -1021,10 +1274,13 @@
     // 交互作用用にジオメトリを保存
     chartGeom = { data, padL, slotW };
 
+    const proj = weightProjection(30);
     const filled = data.filter((d) => d.hasData).length;
-    $("#chart-note").textContent = filled
-      ? `左軸=カロリー(kcal) / 右軸=体重(kg)。記録のある期間: ${filled}区間。`
-      : "この期間の記録がありません。「記録する」からデータを追加してください。";
+    $("#chart-note").innerHTML = (proj
+      ? `このペースだと1ヶ月後は約 <b>${fmt(proj.predicted, 1)}kg</b>（${proj.perMonth >= 0 ? "+" : ""}${fmt(proj.perMonth, 1)}kg/月${proj.capped ? "・上限で丸め" : ""}）。<br>` : "")
+      + (filled
+        ? `左軸=カロリー(kcal) / 右軸=体重(kg)。記録のある期間: ${filled}区間。`
+        : "この期間の記録がありません。「記録する」からデータを追加してください。");
   }
 
   // ==========================================================================
