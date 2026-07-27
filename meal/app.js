@@ -890,10 +890,11 @@
     const bmi = Metrics.bmi(p);
     const cat = Metrics.bmiCategory(bmi);
 
-    // 摂取 vs 消費: 消費以内=青(info) / 近づいたら黄(warn) / 超えたら赤(bad)
-    const near = Math.max(150, burned.total * 0.1);
-    const balTone = balance > 0 ? "bad" : balance > -near ? "warn" : "info";
-    const balLabel = balance > 0 ? "摂取オーバー" : "消費が上回る";
+    // 目標に対する残り: 余裕あり=青(info) / 近づいたら黄(warn) / 超えたら赤(bad)
+    const remaining = target - totals.all.kcal;
+    const near = Math.max(150, target * 0.1);
+    const balTone = remaining < 0 ? "bad" : remaining < near ? "warn" : "info";
+    const balLabel = remaining < 0 ? "目標オーバー" : "目標まで残り";
 
     view.innerHTML = `
       <section class="card">
@@ -912,7 +913,9 @@
           <div class="kpi"><div class="kpi-l">摂取カロリー</div><div class="kpi-v">${fmt(totals.all.kcal)}<small>kcal</small></div></div>
           <div class="kpi"><div class="kpi-l">消費カロリー</div><div class="kpi-v">${fmt(burned.total)}<small>kcal</small></div></div>
           <div class="kpi"><div class="kpi-l">目標摂取</div><div class="kpi-v">${fmt(target)}<small>kcal</small></div></div>
-          <div class="kpi ${balTone}"><div class="kpi-l">${balLabel}</div><div class="kpi-v">${balance > 0 ? "+" : ""}${fmt(balance)}<small>kcal</small></div></div>
+          <div class="kpi ${balTone}"><div class="kpi-l">${balLabel}</div>
+            <div class="kpi-v">${remaining < 0 ? "+" : ""}${fmt(Math.abs(remaining))}<small>kcal</small></div>
+            <div class="muted">収支 ${balance >= 0 ? "+" : ""}${fmt(balance)}</div></div>
         </div>
 
         ${renderBalanceBar(totals.all.kcal, burned.total, target, balTone)}
@@ -1027,15 +1030,25 @@
     const remaining = target - all.kcal; // 目標までの残り
     const loggedMeals = MEAL_SLOTS.filter((s) => totals.slots[s.key].kcal > 0);
 
-    // 1. カロリー過不足
+    // 1. 目標に対する残り（主指標）
     if (all.kcal === 0) {
       a.push(["info", "まだ食事が記録されていません。「記録する」から今日の食事を追加すると分析が始まります。"]);
-    } else if (balance > 300) {
-      a.push(["bad", `摂取が消費を <b>${fmt(balance)}kcal</b> 上回っています。この状態が続くと約 ${fmt(balance * 30 / 7200, 1)}kg/月 の増加ペースです。夕食は揚げ物や主食を控えめにしましょう。`]);
-    } else if (balance < -400) {
-      a.push(["warn", `消費が摂取を <b>${fmt(-balance)}kcal</b> 上回っています。減量には有効ですが、極端な不足は筋肉量の低下につながります。たんぱく質を確保しましょう。`]);
+    } else if (remaining < 0) {
+      a.push(["bad", `目標(${fmt(target)}kcal)を <b>${fmt(-remaining)}kcal</b> 超えています。今日はこれ以上の食事を控え、軽い運動でリカバリーしましょう。`]);
+    } else if (remaining < Math.max(150, target * 0.1)) {
+      a.push(["warn", `目標まであと <b>${fmt(remaining)}kcal</b> と残りわずかです。次に食べるなら、汁物やサラダなど軽いものを選びましょう。`]);
     } else {
-      a.push(["good", `カロリー収支は <b>${balance > 0 ? "+" : ""}${fmt(balance)}kcal</b>。目標に対して良好なバランスです。`]);
+      a.push(["info", `目標まであと <b>${fmt(remaining)}kcal</b> 食べられます。バランスよく配分しましょう。`]);
+    }
+    // 2. 体重変化のペース（摂取−消費）
+    if (all.kcal > 0) {
+      if (balance > 300) {
+        a.push(["warn", `摂取が消費を <b>${fmt(balance)}kcal</b> 上回っています。この状態が続くと約 ${fmt(balance * 30 / 7200, 1)}kg/月 の増加ペースです。`]);
+      } else if (balance < -700) {
+        a.push(["warn", `消費が摂取を <b>${fmt(-balance)}kcal</b> 上回っています。極端な不足は筋肉量の低下につながるため、たんぱく質は確保しましょう。`]);
+      } else if (balance < 0) {
+        a.push(["good", `カロリー収支は <b>${fmt(balance)}kcal</b>。約 ${fmt(-balance * 30 / 7200, 1)}kg/月 の減量ペースです。`]);
+      }
     }
 
     // 2. たんぱく質
