@@ -1623,6 +1623,15 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     }
     return top;
   }
+  // 未記録かつ時間的にこれから食べる食事（過去日は未記録すべてが対象）
+  function remainingMeals(log, date) {
+    const h = date === todayStr() ? new Date().getHours() : 0;
+    return [
+      { key: "breakfast", label: "朝食", until: 10, w: 0.25 },
+      { key: "lunch", label: "昼食", until: 15, w: 0.375 },
+      { key: "dinner", label: "夕食", until: 24, w: 0.375 },
+    ].filter((d) => !(log.meals[d.key] || []).length && h < d.until);
+  }
   function openRecipeSuggest(dateArg) {
     const p = State.data.profile;
     const date = dateArg || todayStr();
@@ -1634,49 +1643,67 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     const remain = Math.max(0, target - t.all.kcal);
     const needP = Math.max(0, nt.protein - t.all.p);
     const needFiber = Math.max(0, nt.fiber - t.all.fiber);
-    const combos = suggestCombos(remain, needP, needFiber);
+
+    // 残りを、これから食べる食事の回数で配分する
+    const rest = remainingMeals(log, date);
+    const slots = rest.length ? rest : [{ key: "snack", label: "間食", w: 1 }];
+    const totalW = slots.reduce((a, s) => a + s.w, 0);
+    let pick = 0; // 提案対象の食事
 
     const modal = makeModal("🍽 残りカロリーでレシピ提案");
     const body = $(".modal-body", modal);
-    body.innerHTML = `
-      <p class="muted">${date === todayStr() ? "今日" : date} の状況：
-        目標 ${fmt(target)}kcal − 摂取 ${fmt(t.all.kcal)}kcal = <b>残り ${fmt(remain)}kcal</b><br>
-        <small>（ダッシュボードの「過不足」は 摂取−消費 で別の指標です）</small></p>
-      <p class="muted">不足たんぱく質 <b>${fmt(needP)}g</b>／不足食物繊維 <b>${fmt(needFiber)}g</b> を補える組み合わせを提案します。</p>
-      ${remain < 150 ? `<p class="warn-box">目標までの残りが少ないため、汁物やサラダなど軽いものが安心です。</p>` : ""}
-      ${combos.length ? combos.map((c, i) => `
-        <div class="ph-card">
-          <div class="row between"><strong>${c.items.map((x) => x.name).join(" ＋ ")}</strong><span>${fmt(c.kcal)}kcal</span></div>
-          <div class="ph-macros">たんぱく質 ${fmt(c.p, 1)}g ・ 食物繊維 ${fmt(c.fiber, 1)}g ・ 塩分 ${fmt(c.salt, 1)}g</div>
-          <div class="row wrap">
-            <button class="btn sm primary" data-add-combo="${i}">この組み合わせを記録</button>
-          </div>
-        </div>`).join("") : `<p class="muted">条件に合う組み合わせが見つかりませんでした。</p>`}
-      <div class="row wrap" style="margin-top:12px">
-        <button class="btn sm ai" id="rc-ai">🤖 AIに献立を考えてもらう</button>
-      </div>
-      <div id="rc-ai-out"></div>`;
 
-    $("[data-add-combo]", body).forEach((btn) => (btn.onclick = () => {
-      const c = combos[parseInt(btn.dataset.addCombo, 10)];
-      const slotKey = prompt("どの食事に記録しますか？ 1:朝食 2:昼食 3:夕食 4:間食", "3");
-      const map = { "1": "breakfast", "2": "lunch", "3": "dinner", "4": "snack" };
-      const key = map[String(slotKey || "").trim()];
-      if (!key) return;
-      c.items.forEach((f) => State.log(date).meals[key].push({ ...f, qty: 1, at: Date.now() }));
-      State.save(); modal.remove(); Nav.go("dashboard");
-    }));
-    $("#rc-ai", body).onclick = async () => {
-      const out = $("#rc-ai-out", body);
-      if (!activeKey()) { out.innerHTML = `<p class="warn-box">設定タブでAPIキーを登録してください。</p>`; return; }
-      out.innerHTML = `<p class="loading">🤖 献立を考えています…</p>`;
-      try {
-        const ans = await askAI([{ role: "user", content: `${buildContext()}\n\n`
-          + `【依頼】残り${fmt(remain)}kcal以内で、不足しているたんぱく質${fmt(needP)}gと食物繊維${fmt(needFiber)}gを補える献立を2案。`
-          + `各案は料理名・目安量・推定カロリーを箇条書きで、作り方は1〜2行で簡潔に。` }], AI_SYSTEM);
-        out.innerHTML = `<div class="ph-card">${escapeHtml(ans).replace(/\n/g, "<br>")}</div>`;
-      } catch (e) { out.innerHTML = `<p class="warn-box">${e.message}</p>`; }
+    const draw = () => {
+      const s = slots[pick];
+      const share = s.w / totalW;
+      const budget = Math.round(remain * share);
+      const bp = needP * share, bf = needFiber * share;
+      const combos = suggestCombos(budget, bp, bf);
+      body.innerHTML = `
+        <p class="muted">${date === todayStr() ? "今日" : date} の状況：
+          目標 ${fmt(target)}kcal − 摂取 ${fmt(t.all.kcal)}kcal = <b>残り ${fmt(remain)}kcal</b><br>
+          <small>（ダッシュボードの「過不足」は 摂取−消費 で別の指標です）</small></p>
+        <p class="muted">これから食べるのは <b>${slots.map((x) => x.label).join("・")}</b> の${slots.length}回。
+          配分すると <b>${s.label}は約 ${fmt(budget)}kcal</b> が目安です。</p>
+        ${slots.length > 1 ? `<div class="seg" style="margin:8px 0">
+          ${slots.map((x, i) => `<button class="seg-btn ${i === pick ? "active" : ""}" data-slot="${i}">${x.label} ${fmt(Math.round(remain * x.w / totalW))}</button>`).join("")}
+        </div>` : ""}
+        <p class="muted">この食事で補いたい たんぱく質 <b>${fmt(bp)}g</b>／食物繊維 <b>${fmt(bf)}g</b></p>
+        ${budget < 150 ? `<p class="warn-box">配分できるカロリーが少ないため、汁物やサラダなど軽いものが安心です。</p>` : ""}
+        ${combos.length ? combos.map((c, i) => `
+          <div class="ph-card">
+            <div class="row between"><strong>${c.items.map((x) => x.name).join(" ＋ ")}</strong><span>${fmt(c.kcal)}kcal</span></div>
+            <div class="ph-macros">たんぱく質 ${fmt(c.p, 1)}g ・ 食物繊維 ${fmt(c.fiber, 1)}g ・ 塩分 ${fmt(c.salt, 1)}g</div>
+            <div class="row wrap">
+              <button class="btn sm primary" data-add-combo="${i}">${s.label}に記録</button>
+            </div>
+          </div>`).join("") : `<p class="muted">条件に合う組み合わせが見つかりませんでした。</p>`}
+        <div class="row wrap" style="margin-top:12px">
+          <button class="btn sm ai" id="rc-ai">🤖 AIに献立を考えてもらう</button>
+        </div>
+        <div id="rc-ai-out"></div>`;
+
+      $("[data-slot]", body).forEach((b2) => (b2.onclick = () => { pick = parseInt(b2.dataset.slot, 10); draw(); }));
+      $("[data-add-combo]", body).forEach((btn) => (btn.onclick = () => {
+        const c = combos[parseInt(btn.dataset.addCombo, 10)];
+        c.items.forEach((f) => State.log(date).meals[s.key].push({ ...f, qty: 1, at: Date.now() }));
+        State.save(); modal.remove(); Nav.go("dashboard");
+      }));
+      $("#rc-ai", body).onclick = async () => {
+        const out = $("#rc-ai-out", body);
+        if (!activeKey()) { out.innerHTML = `<p class="warn-box">設定タブでAPIキーを登録してください。</p>`; return; }
+        out.innerHTML = `<p class="loading">🤖 献立を考えています…</p>`;
+        try {
+          const ans = await askAI([{ role: "user", content: `${buildContext()}\n\n`
+            + `【依頼】本日の残りは${fmt(remain)}kcalで、これから${slots.map((x) => x.label).join("・")}の${slots.length}回の食事があります。`
+            + `そのうち「${s.label}」の献立を2案。1案あたり${fmt(budget)}kcal以内に収め、`
+            + `たんぱく質${fmt(bp)}g・食物繊維${fmt(bf)}g程度を補えるようにしてください。`
+            + `各案は料理名・目安量・推定カロリーを箇条書きで、作り方は1〜2行で簡潔に。` }], AI_SYSTEM);
+          out.innerHTML = `<div class="ph-card">${escapeHtml(ans).replace(/\n/g, "<br>")}</div>`;
+        } catch (e) { out.innerHTML = `<p class="warn-box">${e.message}</p>`; }
+      };
     };
+    draw();
   }
 
   // ==========================================================================
