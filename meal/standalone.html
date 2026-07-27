@@ -1627,10 +1627,45 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
   function remainingMeals(log, date) {
     const h = date === todayStr() ? new Date().getHours() : 0;
     return [
-      { key: "breakfast", label: "朝食", until: 10, w: 0.25 },
-      { key: "lunch", label: "昼食", until: 15, w: 0.375 },
-      { key: "dinner", label: "夕食", until: 24, w: 0.375 },
+      { key: "breakfast", label: "朝食", until: 10 },
+      { key: "lunch", label: "昼食", until: 15 },
+      { key: "dinner", label: "夕食", until: 24 },
     ].filter((d) => !(log.meals[d.key] || []).length && h < d.until);
+  }
+  const isWeekendDate = (k) => [0, 6].includes(new Date(k + "T00:00:00").getDay());
+  // 過去の記録から、同じ曜日区分(平日/週末)の食事別 平均kcal を求める
+  function mealAvgKcal(date) {
+    const weekend = isWeekendDate(date);
+    const acc = { breakfast: [], lunch: [], dinner: [] };
+    Object.keys(State.data.logs).forEach((k) => {
+      if (k >= date || isWeekendDate(k) !== weekend) return;
+      const l = State.data.logs[k];
+      if (!l || !l.meals) return;
+      Object.keys(acc).forEach((s) => {
+        const items = l.meals[s] || [];
+        if (items.length) acc[s].push(sumItems(items).kcal);
+      });
+    });
+    const out = { weekend };
+    Object.keys(acc).forEach((s) => {
+      out[s] = acc[s].length >= 3 ? acc[s].reduce((a, b) => a + b, 0) / acc[s].length : null;
+      out[s + "N"] = acc[s].length;
+    });
+    return out;
+  }
+  // 各食事の配分の重み（実績優先 → 手動設定 → 既定値）
+  function mealWeights(slots, date, target) {
+    const DEF = { breakfast: 0.25, lunch: 0.375, dinner: 0.375, snack: 1 };
+    const style = State.data.settings.breakfastStyle || "auto";
+    const avg = mealAvgKcal(date);
+    let basis = "既定の配分";
+    return slots.map((s) => {
+      let w = DEF[s.key] * target, src = "既定";
+      if (s.key === "breakfast" && style === "light") { w = 200; src = "設定(軽め)"; }
+      else if (s.key === "breakfast" && style === "solid") { w = 500; src = "設定(しっかり)"; }
+      if (avg[s.key] != null) { w = Math.max(avg[s.key], 50); src = `実績${avg[s.key + "N"]}件`; basis = `あなたの${avg.weekend ? "週末" : "平日"}の記録`; }
+      return { ...s, w, src };
+    }).map((s, _, arr) => ({ ...s, basis: arr.some((x) => x.src.startsWith("実績")) ? basis : "既定/設定の配分" }));
   }
   function openRecipeSuggest(dateArg) {
     const p = State.data.profile;
@@ -1644,9 +1679,9 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     const needP = Math.max(0, nt.protein - t.all.p);
     const needFiber = Math.max(0, nt.fiber - t.all.fiber);
 
-    // 残りを、これから食べる食事の回数で配分する
+    // 残りを、これから食べる食事へ配分する（実績の食べ方に合わせた重み）
     const rest = remainingMeals(log, date);
-    const slots = rest.length ? rest : [{ key: "snack", label: "間食", w: 1 }];
+    const slots = mealWeights(rest.length ? rest : [{ key: "snack", label: "間食" }], date, target);
     const totalW = slots.reduce((a, s) => a + s.w, 0);
     let pick = 0; // 提案対象の食事
 
@@ -1664,7 +1699,8 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
           目標 ${fmt(target)}kcal − 摂取 ${fmt(t.all.kcal)}kcal = <b>残り ${fmt(remain)}kcal</b><br>
           <small>（ダッシュボードの「過不足」は 摂取−消費 で別の指標です）</small></p>
         <p class="muted">これから食べるのは <b>${slots.map((x) => x.label).join("・")}</b> の${slots.length}回。
-          配分すると <b>${s.label}は約 ${fmt(budget)}kcal</b> が目安です。</p>
+          配分すると <b>${s.label}は約 ${fmt(budget)}kcal</b> が目安です。<br>
+          <small>配分の根拠: ${s.basis}（${slots.map((x) => `${x.label}=${x.src}`).join(" / ")}）</small></p>
         ${slots.length > 1 ? `<div class="seg" style="margin:8px 0">
           ${slots.map((x, i) => `<button class="seg-btn ${i === pick ? "active" : ""}" data-slot="${i}">${x.label} ${fmt(Math.round(remain * x.w / totalW))}</button>`).join("")}
         </div>` : ""}
@@ -2130,6 +2166,19 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       </section>
 
       <section class="card">
+        <h3>🍳 朝食のスタイル</h3>
+        <p class="muted">レシピ提案でカロリーを配分するときの目安です。記録が3件以上たまると、
+          <b>平日／週末それぞれの実際の食べ方</b>を自動学習してこの設定より優先されます。</p>
+        <label class="block">通常の朝食
+          <select id="set-bf">
+            <option value="auto" ${(s.breakfastStyle || "auto") === "auto" ? "selected" : ""}>おまかせ（記録から自動学習）</option>
+            <option value="light" ${s.breakfastStyle === "light" ? "selected" : ""}>軽め（プロテインのみ等・約200kcal）</option>
+            <option value="solid" ${s.breakfastStyle === "solid" ? "selected" : ""}>しっかり（約500kcal）</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="card">
         <h3>🔔 記録のリマインダー</h3>
         <label class="row" style="flex-direction:row;align-items:center;gap:8px">
           <input type="checkbox" id="set-nudge" ${s.nudge === false ? "" : "checked"} style="width:auto">
@@ -2185,6 +2234,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       State.save(); alert("保存しました。選択中のサービスとキーで解析します。");
     };
     $("#set-nudge").onchange = (e) => { State.data.settings.nudge = e.target.checked; State.save(); };
+    $("#set-bf").onchange = (e) => { State.data.settings.breakfastStyle = e.target.value; State.save(); };
     $("#hk-copy").onclick = () => {
       const url = `${location.origin}${location.pathname}?steps=`;
       const done = () => alert(`コピーしました:\n${url}[歩数]\n\n末尾に歩数を付けて開くと記録されます。`);
