@@ -1341,7 +1341,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     $("#dash-date").onchange = (e) => { dashDate = e.target.value; renderDashboard(view); };
     const backBtn = $("#dash-today");
     if (backBtn) backBtn.onclick = () => { dashDate = todayStr(); renderDashboard(view); };
-    $("#dash-recipe").onclick = () => openRecipeSuggest();
+    $("#dash-recipe").onclick = () => openRecipeSuggest(dashDate);
     const nb = $("#nudge-go"); if (nb) nb.onclick = () => Nav.go("record");
   }
   // 未記録の食事をやさしく促すバナー（時刻を過ぎた食事だけ対象）
@@ -1544,9 +1544,15 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       logEl.insertAdjacentHTML("beforeend", `<div class="msg assistant loading" id="ch-wait">🤖 考えています…</div>`);
       logEl.scrollTop = logEl.scrollHeight;
       try {
+        // 過去のやり取り → 今回の質問 の順に並べる（user/assistantが交互になるように）
+        const history = (State.data.chat || []).slice(0, -1)
+          .filter((m) => !(m.role === "assistant" && m.content.startsWith("⚠️")))
+          .slice(-6);
+        while (history.length && history[0].role !== "user") history.shift();
+        while (history.length && history[history.length - 1].role !== "assistant") history.pop();
         const answer = await askAI(
-          [{ role: "user", content: `${buildContext()}\n\n【質問】${text}` }].concat(
-            (State.data.chat || []).slice(-6, -1).map((m) => ({ role: m.role, content: m.content }))),
+          history.map((m) => ({ role: m.role, content: m.content }))
+            .concat([{ role: "user", content: `${buildContext()}\n\n【質問】${text}` }]),
           AI_SYSTEM);
         State.data.chat = (State.data.chat || []).concat({ role: "assistant", content: answer }).slice(-40);
         State.save();
@@ -1604,9 +1610,10 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     }
     return top;
   }
-  function openRecipeSuggest() {
+  function openRecipeSuggest(dateArg) {
     const p = State.data.profile;
-    const log = State.log(todayStr());
+    const date = dateArg || todayStr();
+    const log = State.log(date);
     const t = dayTotals(log);
     const b = Metrics.burned(p, log.activity);
     const target = Metrics.targetIntake(p, b.total);
@@ -1619,7 +1626,10 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     const modal = makeModal("🍽 残りカロリーでレシピ提案");
     const body = $(".modal-body", modal);
     body.innerHTML = `
-      <p class="muted">残り <b>${fmt(remain)}kcal</b>／不足たんぱく質 <b>${fmt(needP)}g</b>／不足食物繊維 <b>${fmt(needFiber)}g</b> に合う組み合わせです。</p>
+      <p class="muted">${date === todayStr() ? "今日" : date} の状況：
+        目標 ${fmt(target)}kcal − 摂取 ${fmt(t.all.kcal)}kcal = <b>残り ${fmt(remain)}kcal</b><br>
+        <small>（ダッシュボードの「過不足」は 摂取−消費 で別の指標です）</small></p>
+      <p class="muted">不足たんぱく質 <b>${fmt(needP)}g</b>／不足食物繊維 <b>${fmt(needFiber)}g</b> を補える組み合わせを提案します。</p>
       ${remain < 150 ? `<p class="warn-box">目標までの残りが少ないため、汁物やサラダなど軽いものが安心です。</p>` : ""}
       ${combos.length ? combos.map((c, i) => `
         <div class="ph-card">
@@ -1640,7 +1650,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       const map = { "1": "breakfast", "2": "lunch", "3": "dinner", "4": "snack" };
       const key = map[String(slotKey || "").trim()];
       if (!key) return;
-      c.items.forEach((f) => State.log(todayStr()).meals[key].push({ ...f, qty: 1, at: Date.now() }));
+      c.items.forEach((f) => State.log(date).meals[key].push({ ...f, qty: 1, at: Date.now() }));
       State.save(); modal.remove(); Nav.go("dashboard");
     }));
     $("#rc-ai", body).onclick = async () => {
