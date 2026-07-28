@@ -490,9 +490,12 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     mergeRemote(remote) {
       if (!remote || !remote.users) return false;
       const local = this.persistable();
+      // 削除済み利用者は再同期で復活させない
+      const deleted = new Set((local.deletedUsers || []).concat(remote.deletedUsers || []));
       const ids = new Set(Object.keys(local.users || {}).concat(Object.keys(remote.users || {})));
       const users = {};
       ids.forEach((id) => {
+        if (deleted.has(id)) return;
         const a = (local.users || {})[id], b = (remote.users || {})[id];
         if (!a || !b) { users[id] = a || b; return; }
         const newer = (a.updatedAt || 0) >= (b.updatedAt || 0) ? a : b;
@@ -516,6 +519,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         delete users[id].keys;
       });
       this.data.users = users;
+      this.data.deletedUsers = Array.from(deleted);
       if (!users[this.data.currentUser]) this.data.currentUser = Object.keys(users)[0];
       this.hydrate();
       this.save(true);
@@ -523,34 +527,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     },
     users() { return Object.entries(this.data.users).map(([id, u]) => ({ id, name: u.name })); },
     currentName() { return this.data.users[this.data.currentUser].name; },
-    switchUser(id) {
-      if (!this.data.users[id]) return;
-      this.save();                      // 現在の利用者を確定保存
-      this.data.currentUser = id;
-      this.hydrate(); this.save();
-    },
-    addUser(name) {
-      const id = "u" + Date.now().toString(36);
-      const u = this.blank(name);
-      // APIキーは家族で共有できるよう引き継ぐ（各自で変更可）
-      const cur = this.data.settings || {};
-      u.settings.provider = cur.provider || "gemini";
-      u.settings.model = cur.model;
-      u.settings.keys = Object.assign({ gemini: "", anthropic: "" }, cur.keys || {});
-      this.save();
-      this.data.users[id] = u;
-      this.data.currentUser = id;
-      this.hydrate(); this.save();
-      return id;
-    },
     renameUser(id, name) { if (this.data.users[id]) { this.data.users[id].name = name; this.save(); } },
-    deleteUser(id) {
-      if (Object.keys(this.data.users).length <= 1) return false;
-      delete this.data.users[id];
-      if (this.data.currentUser === id) this.data.currentUser = Object.keys(this.data.users)[0];
-      this.hydrate(); this.save();
-      return true;
-    },
     log(date) {
       if (!this.data.logs[date]) {
         this.data.logs[date] = {
@@ -824,10 +801,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     app.innerHTML = `
       <header class="topbar">
         <div class="brand">🍱 <span>ミール・ヘルスケア</span></div>
-        <div class="tb-right">
-          <button class="user-chip" id="user-btn">👤 ${escapeHtml(State.currentName())} ▾</button>
-          <div class="today">${new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" })}</div>
-        </div>
+        <div class="today">${new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" })}</div>
       </header>
       <nav class="tabs">
         ${Nav.tabs.map((t) => `<button class="tab ${Nav.current === t.key ? "active" : ""}" data-tab="${t.key}">
@@ -835,7 +809,6 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       </nav>
       <main id="view"></main>`;
     $(".tab").forEach((b) => (b.onclick = () => Nav.go(b.dataset.tab)));
-    $("#user-btn").onclick = () => openUserPicker();
     const view = $("#view");
     if (!State.data.profile && Nav.current !== "profile") Nav.current = "profile";
     ({
@@ -2389,19 +2362,31 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
           ③ 表示された<b>同期ID</b>をもう一方の端末の同じ欄に入力して「今すぐ同期」。<br>
           以降は<b>アプリを開いたときと記録の数秒後に自動同期</b>されます。データは<b>非公開のGist</b>に保存され、
           トークンはこの端末にのみ保存されます（同期対象外）。</p>
+        <p class="warn-box">🔒 <b>プライバシー</b>: 同期は「同じトークン＋同じ同期ID」を入れた端末どうしでのみ共有されます。
+          自分のiPhoneとiPadを繋ぐ用途で使い、<b>家族には教えないでください</b>。
+          家族が同期を使う場合は、各自のGitHubアカウントで別のトークンを作れば、お互いのデータは見えません。</p>
       </section>
 
       <section class="card">
         <h3>👨‍👩‍👧 家族と使う</h3>
-        <p class="muted">現在の利用者: <b>${escapeHtml(State.currentName())}</b>（登録 ${State.users().length}人）</p>
+        <p class="muted">このアプリは <b>1台につき1人分</b> のデータだけを扱います。
+          家族はそれぞれの端末で、それぞれのGitHubトークンを使ってください。
+          <b>お互いのデータは見えません。</b></p>
+        <label class="block">この端末の利用者名（表示用）
+          <input type="text" id="set-uname" value="${escapeHtml(State.currentName())}" placeholder="例: 自分">
+        </label>
         <div class="row wrap">
-          <button class="btn sm primary" id="set-users">使う人を切り替え / 追加</button>
+          <button class="btn sm" id="set-uname-save">名前を保存</button>
           <button class="btn sm" id="set-share">アプリのURLをコピー</button>
         </div>
-        <p class="muted"><b>それぞれのスマホで使う場合</b>（おすすめ）: 上のURLを家族に送り、各自のブラウザで開くだけです。
-          データは各自の端末に保存され、混ざりません。<br>
-          <b>1台を共有する場合</b>: 「使う人を切り替え」で家族を追加すると、画面右上から切り替えできます。</p>
         <p class="urlbox">${location.origin}${location.pathname}</p>
+        <p class="muted">家族に渡す手順: 上のURLを送る → 各自のブラウザで開く → 各自でプロフィールを入力。
+          同期を使うなら、<b>各自のGitHubアカウントでトークンを作成</b>してください
+          （同じトークンを共有すると相手のデータも見えてしまいます）。</p>
+        ${State.users().length > 1 ? `
+          <p class="warn-box">⚠️ この端末には他に ${State.users().length - 1} 人分のデータが残っています。
+            プライバシーのため、不要なら削除してください（同期先にも含まれています）。</p>
+          <button class="btn sm danger" id="set-purge">他の人のデータを削除</button>` : ""}
       </section>
 
       <section class="card">
@@ -2498,7 +2483,25 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       if (!confirm("同期を解除します。この端末のデータは残ります。")) return;
       Sync.cfg = {}; Sync.saveCfg(); renderSettings(view);
     };
-    $("#set-users").onclick = () => openUserPicker();
+    $("#set-uname-save").onclick = () => {
+      const n = $("#set-uname").value.trim();
+      if (!n) return;
+      State.renameUser(State.data.currentUser, n); alert("保存しました。"); renderSettings(view);
+    };
+    const purge = $("#set-purge");
+    if (purge) purge.onclick = () => {
+      const others = Object.keys(State.data.users).filter((id) => id !== State.data.currentUser);
+      if (!confirm(`この端末に残っている他 ${others.length} 人分のデータを削除します。よろしいですか？`)) return;
+      others.forEach((id) => delete State.data.users[id]);
+      // 削除済みとして記録し、次回以降の同期で復活しないようにする
+      State.data.deletedUsers = (State.data.deletedUsers || []).concat(others);
+      State.save(true);
+      // 同期中なら、取得せずに上書き送信してクラウド側からも消す
+      if (Sync.enabled()) {
+        Sync.push().then(() => { alert("削除し、クラウドにも反映しました。"); renderSettings(view); })
+          .catch((e) => { alert(`端末からは削除しましたが、クラウド反映に失敗しました: ${e.message}`); renderSettings(view); });
+      } else { alert("削除しました。"); renderSettings(view); }
+    };
     $("#set-share").onclick = () => {
       const url = `${location.origin}${location.pathname}`;
       const done = () => alert(`コピーしました:\n${url}\n\n家族に送って、各自のブラウザで開いてもらってください。`);
@@ -2537,50 +2540,6 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         localStorage.removeItem(STORE_KEY); State.load(); render();
       }
     };
-  }
-
-  // ---- 利用者の切り替え（家族での共有） -----------------------------------
-  function openUserPicker() {
-    const modal = makeModal("👤 使う人を選ぶ");
-    const body = $(".modal-body", modal);
-    const draw = () => {
-      const users = State.users();
-      body.innerHTML = `
-        <p class="muted">1台を家族で共有する場合に使います。記録・プロフィール・設定は<b>人ごとに分かれて</b>保存されます。</p>
-        <div class="fp-list">
-          ${users.map((u) => `
-            <button class="fp-item ${u.id === State.data.currentUser ? "sel" : ""}" data-uid="${u.id}">
-              <span class="fp-name">${escapeHtml(u.name)}${u.id === State.data.currentUser ? " <span class=\"badge good sm\">選択中</span>" : ""}
-                <small>${Object.keys(State.data.users[u.id].logs || {}).length}日分の記録</small></span>
-              <span class="fp-k">切替</span>
-            </button>`).join("")}
-        </div>
-        <div class="row wrap" style="margin-top:12px">
-          <button class="btn sm primary" id="up-add">＋ 家族を追加</button>
-          <button class="btn sm" id="up-rename">名前を変更</button>
-          ${users.length > 1 ? `<button class="btn sm danger" id="up-del">この人を削除</button>` : ""}
-        </div>`;
-      $("[data-uid]", body).forEach((b) => (b.onclick = () => {
-        State.switchUser(b.dataset.uid); modal.remove(); Nav.go("dashboard");
-      }));
-      $("#up-add", body).onclick = () => {
-        const name = (prompt("追加する人の名前", "") || "").trim();
-        if (!name) return;
-        State.addUser(name); modal.remove(); Nav.go("profile");
-        alert(`「${name}」を追加しました。プロフィールを入力してください。`);
-      };
-      $("#up-rename", body).onclick = () => {
-        const name = (prompt("名前を変更", State.currentName()) || "").trim();
-        if (!name) return;
-        State.renameUser(State.data.currentUser, name); draw(); render();
-      };
-      const del = $("#up-del", body);
-      if (del) del.onclick = () => {
-        if (!confirm(`「${State.currentName()}」の記録をすべて削除します。よろしいですか？`)) return;
-        State.deleteUser(State.data.currentUser); modal.remove(); render();
-      };
-    };
-    draw();
   }
 
   // ---- モーダル生成 -------------------------------------------------------
