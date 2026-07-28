@@ -17,7 +17,9 @@
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const fmt = (n, d = 0) => (Math.round(n * 10 ** d) / 10 ** d).toLocaleString("ja-JP");
-  const todayStr = () => new Date().toISOString().slice(0, 10);
+  // 日付は必ず端末のローカル時刻で扱う（UTC基準にすると日本では深夜〜朝9時が前日扱いになる）
+  const dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const todayStr = () => dstr(new Date());
 
   // ---- 状態管理 -----------------------------------------------------------
   const State = {
@@ -300,7 +302,6 @@
   }
 
   // ---- 継続・予測などのヘルパー -------------------------------------------
-  const dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   // 連続記録日数（今日 or 昨日を起点に遡る）
   function streakDays() {
     const logs = State.data.logs;
@@ -1256,7 +1257,7 @@
     const series = [];
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(date); d.setDate(d.getDate() - i);
-      const k = d.toISOString().slice(0, 10);
+      const k = dstr(d);
       if (logs[k] && logs[k].weight != null) series.push(logs[k].weight);
     }
     if (series.length < 2) return null;
@@ -1599,13 +1600,13 @@
     if (trendPeriod === "day") {
       for (let i = 13; i >= 0; i--) {
         const d = new Date(now); d.setDate(d.getDate() - i);
-        push(`${d.getMonth() + 1}/${d.getDate()}`, [d.toISOString().slice(0, 10)]);
+        push(`${d.getMonth() + 1}/${d.getDate()}`, [dstr(d)]);
       }
     } else if (trendPeriod === "week") {
       for (let i = 7; i >= 0; i--) {
         const end = new Date(now); end.setDate(end.getDate() - i * 7);
         const keys = [];
-        for (let j = 0; j < 7; j++) { const d = new Date(end); d.setDate(d.getDate() - j); keys.push(d.toISOString().slice(0, 10)); }
+        for (let j = 0; j < 7; j++) { const d = new Date(end); d.setDate(d.getDate() - j); keys.push(dstr(d)); }
         push(`${end.getMonth() + 1}/${end.getDate()}週`, keys);
       }
     } else if (trendPeriod === "month") {
@@ -1613,7 +1614,7 @@
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const keys = [];
         const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-        for (let day = 1; day <= dim; day++) keys.push(new Date(d.getFullYear(), d.getMonth(), day).toISOString().slice(0, 10));
+        for (let day = 1; day <= dim; day++) keys.push(dstr(new Date(d.getFullYear(), d.getMonth(), day)));
         push(`${d.getFullYear() % 100}/${d.getMonth() + 1}`, keys);
       }
     } else {
