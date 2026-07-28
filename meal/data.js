@@ -114,6 +114,10 @@ const FOODS = [
   { name: "からあげクン(5個)",      cat: "外食", unit: "1袋", kcal: 220, p: 12.0, f: 14.0, c: 11.0, fiber: 0.5, salt: 1.4 },
   { name: "カツ丼",                 cat: "外食", unit: "1杯", kcal: 890, p: 33.0, f: 32.0, c: 110.0, fiber: 3.0, salt: 3.5 },
   { name: "回転寿司(10皿)",         cat: "外食", unit: "10皿", kcal: 600, p: 40.0, f: 8.0, c: 88.0, fiber: 1.0, salt: 5.0 },
+
+  // --- 粉もの ---
+  { name: "焼きそば",               cat: "主食", unit: "1人前", kcal: 550, p: 15.0, f: 20.0, c: 76.0, fiber: 4.0, salt: 3.5 },
+  { name: "たこ焼き(6個)",          cat: "主食", unit: "6個", kcal: 320, p: 10.0, f: 14.0, c: 38.0, fiber: 1.5, salt: 1.8 },
 ];
 
 // 運動MET値: 単発の運動を「運動強度」として分類（消費kcal = MET × 体重kg × 時間h × 1.05）
