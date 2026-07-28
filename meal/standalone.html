@@ -38,6 +38,12 @@
     .brand { font-weight:700; font-size:18px; }
     .brand span { background:linear-gradient(90deg,var(--brand),var(--info)); -webkit-background-clip:text; background-clip:text; color:transparent; }
     .today { color:var(--muted); font-size:13px; }
+    .tb-right { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+    .user-chip { border:1px solid var(--line); background:var(--card); color:var(--ink);
+      border-radius:20px; padding:4px 12px; font-size:12.5px; font-weight:600; cursor:pointer; max-width:46vw;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .user-chip:hover { border-color:var(--brand); }
+    .fp-item.sel { border-color:var(--brand); }
 
     .tabs { display:flex; gap:4px; padding:0 12px; overflow-x:auto; position:sticky; top:52px; background:var(--bg); z-index:4; }
     .tab { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:2px;
@@ -420,30 +426,89 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
   // ---- 状態管理 -----------------------------------------------------------
   const State = {
     data: null,
+    // 利用者ごとにプロフィール・記録・設定を分けて保持する
+    blank(name) {
+      return { name: name || "自分", profile: null, logs: {}, customFoods: [], chat: [],
+        settings: { provider: "gemini", keys: { gemini: "", anthropic: "" } } };
+    },
     load() {
-      try {
-        this.data = JSON.parse(localStorage.getItem(STORE_KEY)) || null;
-      } catch (_) { this.data = null; }
-      if (!this.data) this.data = { profile: null, logs: {}, settings: {} };
-      if (!this.data.logs) this.data.logs = {};
-      if (!this.data.settings) this.data.settings = {};
-      if (!this.data.customFoods) this.data.customFoods = [];
-      // キーはサービスごとに保持。旧形式(apiKey単一)があれば移行する。
-      const s = this.data.settings;
+      let raw = null;
+      try { raw = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (_) { raw = null; }
+      if (!raw) raw = {};
+      // 旧形式（単一利用者）からの移行
+      if (!raw.users) {
+        const u = this.blank("自分");
+        if (raw.profile || raw.logs) {
+          u.profile = raw.profile || null; u.logs = raw.logs || {};
+          u.customFoods = raw.customFoods || []; u.chat = raw.chat || [];
+          u.settings = raw.settings || u.settings;
+        }
+        raw = { users: { u1: u }, currentUser: "u1" };
+      }
+      if (!raw.users || !Object.keys(raw.users).length) raw = { users: { u1: this.blank("自分") }, currentUser: "u1" };
+      if (!raw.users[raw.currentUser]) raw.currentUser = Object.keys(raw.users)[0];
+      this.data = raw;
+      this.hydrate();
+    },
+    // 選択中の利用者のデータを、既存コードが参照する位置へ展開する
+    hydrate() {
+      const u = this.data.users[this.data.currentUser];
+      if (!u.settings) u.settings = { provider: "gemini", keys: { gemini: "", anthropic: "" } };
+      if (!u.logs) u.logs = {};
+      if (!u.customFoods) u.customFoods = [];
+      if (!u.chat) u.chat = [];
+      const s = u.settings;
       if (!s.keys) s.keys = { gemini: "", anthropic: "" };
-      if (s.apiKey) {
+      if (s.apiKey) { // 旧形式(単一キー)の移行
         const prov = s.provider || "gemini";
         if (!s.keys[prov]) s.keys[prov] = s.apiKey;
         delete s.apiKey;
       }
       if (!s.provider) s.provider = "gemini";
+      this.data.profile = u.profile; this.data.logs = u.logs;
+      this.data.customFoods = u.customFoods; this.data.chat = u.chat; this.data.settings = s;
     },
     save() {
       // 空の記録（日付操作で生成される中身なしデータ）は保存しない
       Object.keys(this.data.logs).forEach((k) => {
         if (!dayHasContent(this.data.logs[k])) delete this.data.logs[k];
       });
-      localStorage.setItem(STORE_KEY, JSON.stringify(this.data));
+      // 選択中利用者へ書き戻し、保存時は展開分を除いて重複を避ける
+      const u = this.data.users[this.data.currentUser];
+      u.profile = this.data.profile; u.logs = this.data.logs;
+      u.customFoods = this.data.customFoods; u.chat = this.data.chat; u.settings = this.data.settings;
+      const { profile, logs, customFoods, chat, settings, ...persist } = this.data;
+      localStorage.setItem(STORE_KEY, JSON.stringify(persist));
+    },
+    users() { return Object.entries(this.data.users).map(([id, u]) => ({ id, name: u.name })); },
+    currentName() { return this.data.users[this.data.currentUser].name; },
+    switchUser(id) {
+      if (!this.data.users[id]) return;
+      this.save();                      // 現在の利用者を確定保存
+      this.data.currentUser = id;
+      this.hydrate(); this.save();
+    },
+    addUser(name) {
+      const id = "u" + Date.now().toString(36);
+      const u = this.blank(name);
+      // APIキーは家族で共有できるよう引き継ぐ（各自で変更可）
+      const cur = this.data.settings || {};
+      u.settings.provider = cur.provider || "gemini";
+      u.settings.model = cur.model;
+      u.settings.keys = Object.assign({ gemini: "", anthropic: "" }, cur.keys || {});
+      this.save();
+      this.data.users[id] = u;
+      this.data.currentUser = id;
+      this.hydrate(); this.save();
+      return id;
+    },
+    renameUser(id, name) { if (this.data.users[id]) { this.data.users[id].name = name; this.save(); } },
+    deleteUser(id) {
+      if (Object.keys(this.data.users).length <= 1) return false;
+      delete this.data.users[id];
+      if (this.data.currentUser === id) this.data.currentUser = Object.keys(this.data.users)[0];
+      this.hydrate(); this.save();
+      return true;
     },
     log(date) {
       if (!this.data.logs[date]) {
@@ -641,7 +706,10 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     app.innerHTML = `
       <header class="topbar">
         <div class="brand">🍱 <span>ミール・ヘルスケア</span></div>
-        <div class="today">${new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" })}</div>
+        <div class="tb-right">
+          <button class="user-chip" id="user-btn">👤 ${escapeHtml(State.currentName())} ▾</button>
+          <div class="today">${new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" })}</div>
+        </div>
       </header>
       <nav class="tabs">
         ${Nav.tabs.map((t) => `<button class="tab ${Nav.current === t.key ? "active" : ""}" data-tab="${t.key}">
@@ -649,6 +717,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       </nav>
       <main id="view"></main>`;
     $(".tab").forEach((b) => (b.onclick = () => Nav.go(b.dataset.tab)));
+    $("#user-btn").onclick = () => openUserPicker();
     const view = $("#view");
     if (!State.data.profile && Nav.current !== "profile") Nav.current = "profile";
     ({
@@ -2181,6 +2250,19 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       </section>
 
       <section class="card">
+        <h3>👨‍👩‍👧 家族と使う</h3>
+        <p class="muted">現在の利用者: <b>${escapeHtml(State.currentName())}</b>（登録 ${State.users().length}人）</p>
+        <div class="row wrap">
+          <button class="btn sm primary" id="set-users">使う人を切り替え / 追加</button>
+          <button class="btn sm" id="set-share">アプリのURLをコピー</button>
+        </div>
+        <p class="muted"><b>それぞれのスマホで使う場合</b>（おすすめ）: 上のURLを家族に送り、各自のブラウザで開くだけです。
+          データは各自の端末に保存され、混ざりません。<br>
+          <b>1台を共有する場合</b>: 「使う人を切り替え」で家族を追加すると、画面右上から切り替えできます。</p>
+        <p class="urlbox">${location.origin}${location.pathname}</p>
+      </section>
+
+      <section class="card">
         <h3>🍳 朝食のスタイル</h3>
         <p class="muted">レシピ提案でカロリーを配分するときの目安です。記録が3件以上たまると、
           <b>平日／週末それぞれの実際の食べ方</b>を自動学習してこの設定より優先されます。</p>
@@ -2250,6 +2332,12 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     };
     $("#set-nudge").onchange = (e) => { State.data.settings.nudge = e.target.checked; State.save(); };
     $("#set-bf").onchange = (e) => { State.data.settings.breakfastStyle = e.target.value; State.save(); };
+    $("#set-users").onclick = () => openUserPicker();
+    $("#set-share").onclick = () => {
+      const url = `${location.origin}${location.pathname}`;
+      const done = () => alert(`コピーしました:\n${url}\n\n家族に送って、各自のブラウザで開いてもらってください。`);
+      if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, done); else done();
+    };
     $("#hk-copy").onclick = () => {
       const url = `${location.origin}${location.pathname}?steps=`;
       const done = () => alert(`コピーしました:\n${url}[歩数]\n\n末尾に歩数を付けて開くと記録されます。`);
@@ -2283,6 +2371,50 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
         localStorage.removeItem(STORE_KEY); State.load(); render();
       }
     };
+  }
+
+  // ---- 利用者の切り替え（家族での共有） -----------------------------------
+  function openUserPicker() {
+    const modal = makeModal("👤 使う人を選ぶ");
+    const body = $(".modal-body", modal);
+    const draw = () => {
+      const users = State.users();
+      body.innerHTML = `
+        <p class="muted">1台を家族で共有する場合に使います。記録・プロフィール・設定は<b>人ごとに分かれて</b>保存されます。</p>
+        <div class="fp-list">
+          ${users.map((u) => `
+            <button class="fp-item ${u.id === State.data.currentUser ? "sel" : ""}" data-uid="${u.id}">
+              <span class="fp-name">${escapeHtml(u.name)}${u.id === State.data.currentUser ? " <span class=\"badge good sm\">選択中</span>" : ""}
+                <small>${Object.keys(State.data.users[u.id].logs || {}).length}日分の記録</small></span>
+              <span class="fp-k">切替</span>
+            </button>`).join("")}
+        </div>
+        <div class="row wrap" style="margin-top:12px">
+          <button class="btn sm primary" id="up-add">＋ 家族を追加</button>
+          <button class="btn sm" id="up-rename">名前を変更</button>
+          ${users.length > 1 ? `<button class="btn sm danger" id="up-del">この人を削除</button>` : ""}
+        </div>`;
+      $("[data-uid]", body).forEach((b) => (b.onclick = () => {
+        State.switchUser(b.dataset.uid); modal.remove(); Nav.go("dashboard");
+      }));
+      $("#up-add", body).onclick = () => {
+        const name = (prompt("追加する人の名前", "") || "").trim();
+        if (!name) return;
+        State.addUser(name); modal.remove(); Nav.go("profile");
+        alert(`「${name}」を追加しました。プロフィールを入力してください。`);
+      };
+      $("#up-rename", body).onclick = () => {
+        const name = (prompt("名前を変更", State.currentName()) || "").trim();
+        if (!name) return;
+        State.renameUser(State.data.currentUser, name); draw(); render();
+      };
+      const del = $("#up-del", body);
+      if (del) del.onclick = () => {
+        if (!confirm(`「${State.currentName()}」の記録をすべて削除します。よろしいですか？`)) return;
+        State.deleteUser(State.data.currentUser); modal.remove(); render();
+      };
+    };
+    draw();
   }
 
   // ---- モーダル生成 -------------------------------------------------------
