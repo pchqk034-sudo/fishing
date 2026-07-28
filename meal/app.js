@@ -1371,7 +1371,8 @@
         <div class="chart-legend">
           <span><i class="dot br"></i>朝</span><span><i class="dot lu"></i>昼</span>
           <span><i class="dot di"></i>晩</span><span><i class="dot sn"></i>間食</span>
-          <span><i class="line burn"></i>消費</span><span><i class="line tgt"></i>目標摂取</span><span><i class="line wt"></i>体重</span>
+          <span><i class="line burn"></i>消費</span><span><i class="line avgburn"></i>平均消費</span>
+          <span><i class="line tgt"></i>目標摂取</span><span><i class="line wt"></i>体重</span>
         </div>
         <div id="chart-tip" class="chart-tip">グラフをタッチすると、その日の詳細が表示されます</div>
         <div class="chart-wrap"><canvas id="chart" height="320"></canvas></div>
@@ -1556,17 +1557,23 @@
       ctx.fillStyle = "#e0564f"; ctx.beginPath(); ctx.arc(cx, y, 2.5, 0, 7); ctx.fill();
     });
 
-    // 目標摂取のボーダー横線（この線を超えた棒＝摂取オーバー）
+    // ボーダー横線（平均消費／目標摂取）。棒がどの線を超えたか一目で分かる
     const goal = GOALS.find((g) => g.key === (State.data.profile.goal)) || GOALS[1];
-    const tgtVals = data.filter((d) => d.hasData && d.burn > 0).map((d) => d.burn * (1 + goal.adjust));
-    if (tgtVals.length) {
-      const targetKcal = tgtVals.reduce((a, b) => a + b, 0) / tgtVals.length;
-      const y = y0 - (Math.min(targetKcal, maxKcal) / maxKcal) * plotH;
-      ctx.strokeStyle = "#3a7bd5"; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
-      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cssW - padR, y); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = "#3a7bd5"; ctx.textAlign = "left"; ctx.font = "10px sans-serif";
-      ctx.fillText(`目標 ${fmt(targetKcal)}`, padL + 4, y - 4);
-      ctx.font = "11px sans-serif";
+    const burnVals = data.filter((d) => d.hasData && d.burn > 0).map((d) => d.burn);
+    if (burnVals.length) {
+      const avgBurn = burnVals.reduce((a, b) => a + b, 0) / burnVals.length;
+      const avgTarget = avgBurn * (1 + goal.adjust);
+      const hline = (val, color, label, dash, labelRight) => {
+        const y = y0 - (Math.min(val, maxKcal) / maxKcal) * plotH;
+        ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.setLineDash(dash);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cssW - padR, y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = color; ctx.font = "10px sans-serif";
+        ctx.textAlign = labelRight ? "right" : "left";
+        ctx.fillText(`${label} ${fmt(val)}`, labelRight ? cssW - padR - 4 : padL + 4, y - 4);
+        ctx.font = "11px sans-serif"; ctx.textAlign = "center";
+      };
+      hline(avgBurn, "#e0564f", "平均消費", [2, 3], true);   // 赤の点線（これを超えると増加方向）
+      hline(avgTarget, "#3a7bd5", "目標", [6, 4], false);    // 青の破線（目標ライン）
     }
 
     // 体重ライン(右軸)
