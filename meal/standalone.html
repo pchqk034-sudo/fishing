@@ -468,7 +468,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       this.data.profile = u.profile; this.data.logs = u.logs;
       this.data.customFoods = u.customFoods; this.data.chat = u.chat; this.data.settings = s;
     },
-    save() {
+    save(skipSync) {
       // 空の記録（日付操作で生成される中身なしデータ）は保存しない
       Object.keys(this.data.logs).forEach((k) => {
         if (!dayHasContent(this.data.logs[k])) delete this.data.logs[k];
@@ -477,8 +477,49 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       const u = this.data.users[this.data.currentUser];
       u.profile = this.data.profile; u.logs = this.data.logs;
       u.customFoods = this.data.customFoods; u.chat = this.data.chat; u.settings = this.data.settings;
+      u.updatedAt = Date.now();               // 同期時の競合解決に使用
+      localStorage.setItem(STORE_KEY, JSON.stringify(this.persistable()));
+      if (!skipSync && typeof Sync !== "undefined") Sync.schedulePush();
+    },
+    // 保存・同期する形（展開済みデータを除いたもの）
+    persistable() {
       const { profile, logs, customFoods, chat, settings, ...persist } = this.data;
-      localStorage.setItem(STORE_KEY, JSON.stringify(persist));
+      return persist;
+    },
+    // クラウドから取得したデータを取り込む（利用者ごと・日付ごとにマージ）
+    mergeRemote(remote) {
+      if (!remote || !remote.users) return false;
+      const local = this.persistable();
+      const ids = new Set(Object.keys(local.users || {}).concat(Object.keys(remote.users || {})));
+      const users = {};
+      ids.forEach((id) => {
+        const a = (local.users || {})[id], b = (remote.users || {})[id];
+        if (!a || !b) { users[id] = a || b; return; }
+        const newer = (a.updatedAt || 0) >= (b.updatedAt || 0) ? a : b;
+        const older = newer === a ? b : a;
+        // 日付ごとの記録は和集合。同じ日付が両方にあれば新しい側を採用
+        const logs = Object.assign({}, older.logs || {}, newer.logs || {});
+        // カスタム料理は名前で重複排除
+        const seen = new Set(), customFoods = [];
+        (newer.customFoods || []).concat(older.customFoods || []).forEach((f) => {
+          if (!seen.has(f.name)) { seen.add(f.name); customFoods.push(f); }
+        });
+        // 設定は新しい側を優先しつつ、空のAPIキーは古い側で補完
+        const keys = Object.assign({}, (older.settings || {}).keys || {});
+        Object.entries(((newer.settings || {}).keys) || {}).forEach(([k, v]) => { if (v) keys[k] = v; });
+        users[id] = Object.assign({}, older, newer, {
+          logs, customFoods, keys: undefined,
+          settings: Object.assign({}, older.settings, newer.settings, { keys }),
+          chat: (newer.chat || []).length >= (older.chat || []).length ? newer.chat : older.chat,
+          updatedAt: Math.max(a.updatedAt || 0, b.updatedAt || 0),
+        });
+        delete users[id].keys;
+      });
+      this.data.users = users;
+      if (!users[this.data.currentUser]) this.data.currentUser = Object.keys(users)[0];
+      this.hydrate();
+      this.save(true);
+      return true;
     },
     users() { return Object.entries(this.data.users).map(([id, u]) => ({ id, name: u.name })); },
     currentName() { return this.data.users[this.data.currentUser].name; },
@@ -532,6 +573,83 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       return l;
     },
   };
+
+  // ---- クラウド同期（GitHub Gist・非公開） ---------------------------------
+  // 端末をまたいで同じデータを使うための同期。設定は端末ごと（同期対象外）。
+  const SYNC_KEY = "mealApp.sync";
+  const SYNC_FILE = "meal-health.json";
+  const Sync = {
+    cfg: {},
+    busy: false,
+    timer: null,
+    load() { try { this.cfg = JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch (_) { this.cfg = {}; } },
+    saveCfg() { localStorage.setItem(SYNC_KEY, JSON.stringify(this.cfg)); },
+    enabled() { return !!this.cfg.token; },
+    async api(path, opts) {
+      const res = await fetch(`https://api.github.com${path}`, Object.assign({}, opts, {
+        headers: Object.assign({
+          authorization: `Bearer ${this.cfg.token}`,
+          accept: "application/vnd.github+json",
+          "content-type": "application/json",
+        }, (opts || {}).headers),
+      }));
+      if (!res.ok) {
+        const msg = res.status === 401 ? "トークンが無効です" : res.status === 404 ? "同期IDが見つかりません" : (await res.text()).slice(0, 120);
+        throw new Error(`同期エラー ${res.status}: ${msg}`);
+      }
+      return res.json();
+    },
+    async push() {
+      const content = JSON.stringify({ app: "meal-health", v: 1, at: Date.now(), data: State.persistable() });
+      const files = { [SYNC_FILE]: { content } };
+      if (this.cfg.gistId) {
+        await this.api(`/gists/${this.cfg.gistId}`, { method: "PATCH", body: JSON.stringify({ files }) });
+      } else {
+        const g = await this.api("/gists", { method: "POST", body: JSON.stringify({
+          description: "ミール・ヘルスケア 同期データ", public: false, files }) });
+        this.cfg.gistId = g.id;
+      }
+      this.cfg.lastSync = Date.now(); this.saveCfg();
+    },
+    async pull() {
+      if (!this.cfg.gistId) return null;
+      const g = await this.api(`/gists/${this.cfg.gistId}`);
+      const f = g.files && g.files[SYNC_FILE];
+      if (!f) return null;
+      const text = f.truncated ? await (await fetch(f.raw_url)).text() : f.content;
+      const j = JSON.parse(text);
+      return j && j.data ? j.data : null;
+    },
+    // 取得 → マージ → 送信
+    async sync() {
+      if (!this.enabled() || this.busy) return false;
+      this.busy = true;
+      try {
+        const remote = await this.pull();
+        if (remote) State.mergeRemote(remote);
+        await this.push();
+        return true;
+      } finally { this.busy = false; }
+    },
+    // 保存のたびに呼ばれる。まとめて数秒後に送信する
+    schedulePush() {
+      if (!this.enabled()) return;
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => {
+        this.push().then(() => updateSyncBadge()).catch(() => updateSyncBadge("エラー"));
+      }, 4000);
+    },
+  };
+  function syncStatusText() {
+    if (!Sync.enabled()) return "未設定";
+    if (!Sync.cfg.lastSync) return "未同期";
+    const m = Math.round((Date.now() - Sync.cfg.lastSync) / 60000);
+    return m < 1 ? "たった今同期" : m < 60 ? `${m}分前に同期` : `${Math.round(m / 60)}時間前に同期`;
+  }
+  function updateSyncBadge(err) {
+    const el = document.getElementById("sync-status");
+    if (el) el.textContent = err ? `同期エラー` : syncStatusText();
+  }
 
   // ---- 身体指標の計算 ----------------------------------------------------
   const Metrics = {
@@ -2250,6 +2368,30 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       </section>
 
       <section class="card">
+        <h3>☁️ クラウド同期（iPhone / iPad で共有）</h3>
+        <p class="muted">状態: <b id="sync-status">${syncStatusText()}</b>
+          ${Sync.cfg.gistId ? `<br>同期ID: <code>${Sync.cfg.gistId}</code>` : ""}</p>
+        <label class="block">GitHubトークン（gistのみの権限）
+          <input type="password" id="sy-token" value="${Sync.cfg.token || ""}" placeholder="ghp_...">
+        </label>
+        <label class="block">同期ID（2台目以降は1台目のIDを貼り付け）
+          <input type="text" id="sy-gist" value="${Sync.cfg.gistId || ""}" placeholder="初回は空のままでOK">
+        </label>
+        <div class="row wrap">
+          <button class="btn sm primary" id="sy-now">今すぐ同期</button>
+          ${Sync.cfg.gistId ? `<button class="btn sm" id="sy-copy">同期IDをコピー</button>` : ""}
+          ${Sync.enabled() ? `<button class="btn sm danger" id="sy-off">同期を解除</button>` : ""}
+        </div>
+        <div id="sy-msg"></div>
+        <p class="muted"><b>設定手順</b>：①
+          <a href="https://github.com/settings/tokens/new?scopes=gist&description=meal-health-sync" target="_blank" rel="noopener">このリンク</a>
+          でトークンを作成（権限は <b>gist</b> のみ、有効期限はNo expirationが便利）→ ② 上の欄に貼って「今すぐ同期」→
+          ③ 表示された<b>同期ID</b>をもう一方の端末の同じ欄に入力して「今すぐ同期」。<br>
+          以降は<b>アプリを開いたときと記録の数秒後に自動同期</b>されます。データは<b>非公開のGist</b>に保存され、
+          トークンはこの端末にのみ保存されます（同期対象外）。</p>
+      </section>
+
+      <section class="card">
         <h3>👨‍👩‍👧 家族と使う</h3>
         <p class="muted">現在の利用者: <b>${escapeHtml(State.currentName())}</b>（登録 ${State.users().length}人）</p>
         <div class="row wrap">
@@ -2332,6 +2474,30 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
     };
     $("#set-nudge").onchange = (e) => { State.data.settings.nudge = e.target.checked; State.save(); };
     $("#set-bf").onchange = (e) => { State.data.settings.breakfastStyle = e.target.value; State.save(); };
+    $("#sy-now").onclick = async () => {
+      const msg = $("#sy-msg");
+      Sync.cfg.token = $("#sy-token").value.trim();
+      Sync.cfg.gistId = $("#sy-gist").value.trim() || Sync.cfg.gistId;
+      if (!Sync.cfg.token) { msg.innerHTML = `<p class="warn-box">GitHubトークンを入力してください。</p>`; return; }
+      Sync.saveCfg();
+      msg.innerHTML = `<p class="loading">☁️ 同期中…</p>`;
+      try {
+        await Sync.sync();
+        msg.innerHTML = `<p class="good-box">✅ 同期しました。他の端末では同期IDに
+          <code>${Sync.cfg.gistId}</code> を入力してください。</p>`;
+        renderSettings(view);
+      } catch (e) { msg.innerHTML = `<p class="warn-box">${e.message}</p>`; }
+    };
+    const syCopy = $("#sy-copy");
+    if (syCopy) syCopy.onclick = () => {
+      const done = () => alert(`同期IDをコピーしました:\n${Sync.cfg.gistId}`);
+      if (navigator.clipboard) navigator.clipboard.writeText(Sync.cfg.gistId).then(done, done); else done();
+    };
+    const syOff = $("#sy-off");
+    if (syOff) syOff.onclick = () => {
+      if (!confirm("同期を解除します。この端末のデータは残ります。")) return;
+      Sync.cfg = {}; Sync.saveCfg(); renderSettings(view);
+    };
     $("#set-users").onclick = () => openUserPicker();
     $("#set-share").onclick = () => {
       const url = `${location.origin}${location.pathname}`;
@@ -2457,6 +2623,7 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
   }
 
   // ---- 起動 ---------------------------------------------------------------
+  Sync.load();
   State.load();
   const imported = importFromURL();
   if (imported) { dashDate = imported.date; Nav.current = "dashboard"; }
@@ -2467,6 +2634,12 @@ window.MEAL_DATA = { FOODS, EXERCISE_MET, BEHAVIOR, GOALS };
       (imported.weight ? `\n体重 ${imported.weight}kg も記録しました。` : "")), 100);
   }
   window.addEventListener("resize", () => { if (Nav.current === "trend") drawChart(); });
+
+  // 起動時に一度だけクラウドと同期（取得→マージ→送信）
+  if (Sync.enabled()) {
+    Sync.sync().then((ok) => { if (ok) { render(); updateSyncBadge(); } })
+      .catch(() => updateSyncBadge("エラー"));
+  }
 })();
 
   </script>
