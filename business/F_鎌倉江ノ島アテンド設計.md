@@ -169,6 +169,130 @@
 
 ---
 
+## 4.5 🎎 和装オプション（＝「コスプレ遊覧船」の最小実装）
+
+> [`I_コスプレ遊覧船の検討`](./I_コスプレ遊覧船の検討.md) の結論を、この商品に落とし込んだもの。
+> **船を持たず、許認可も要らず、固定費ゼロで「和装＋遊覧船＋富士山」が成立する。**
+
+### 🚫 大前提
+**既存アニメ・ゲームキャラクターの衣装は、いかなる形でも使わない。**
+マリカー事件で**5,000万円の賠償＋代表者個人の責任**が確定している。
+**外国語サイトでの表示も不正競争行為と認定された**ため、英語ページも逃げ場にならない。
+→ **和装（着物・浴衣・法被）またはオリジナル衣装のみ。**
+
+---
+
+### 💡 構成：¥400の遊覧船が「船の体験」を埋める
+
+```
+和装で着付け  →  江ノ電で移動  →  鎌倉高校前で撮影
+       →  べんてん丸（大人¥400・約7分）に乗船
+       →  海上から江ノ島と富士山をバックに撮影
+       →  夕景の富士山で締める
+```
+
+> ⭐ **べんてん丸は天気が良ければ富士山を一望できる。**
+> **「和装で船に乗って富士山と撮る」が、原価¥400で実現する。**
+> 自前の遊覧船（初期1,000〜2,000万円）と、**体験の核は大きく変わらない。**
+
+---
+
+### 提携先候補（和装レンタル）
+
+| 事業者 | 料金 | 立地 | 備考 |
+|---|---|---|---|
+| **SALA** | **1名¥2,800〜** | **江ノ島・湘南** | 浴衣・着物・訪問着 |
+| 梨花和服 鎌倉店 | 要確認 | 鎌倉 | **団体割あり・外国人利用で人気** |
+| VASARA 鎌倉小町通り店 | ¥6,930／人 | 鎌倉 | 体験時間6〜7時間 |
+| 鎌倉古民家 撮影プラン | 要確認 | 鎌倉 | 浴衣＋着付け＋**プロカメラマン撮影** |
+| 湘南・鎌倉の相場 | ¥4,000前後（最安¥1,500） | — | |
+
+> 💡 **送客するので団体割を交渉できる。** 仕入¥3,500／人を目標にする。
+
+---
+
+### コースは2本（返却場所の制約で分ける）
+
+⚠️ **レンタル着物は原則「借りた店に返す」。** これが行程を規定する。
+
+#### 🅐 鎌倉和装コース（鎌倉の店で着付け・返却）
+| 時刻 | 内容 |
+|---|---|
+| 09:30 | 鎌倉の店で**着付け・ヘアセット**（約60分） |
+| 10:30 | 鶴岡八幡宮（参拝作法を英語で） |
+| 11:30 | 小町通り（食べ歩き・昼食） |
+| 13:00 | 江ノ電で長谷へ → 高徳院（大仏） |
+| 14:30 | 鎌倉高校前（**市の公式撮影エリア**で撮影） |
+| 15:30 | 鎌倉へ戻る |
+| 16:30 | **返却**・着替え |
+| 17:00 | 解散 |
+
+#### 🅑 江ノ島和装コース（江ノ島の店で着付け・返却）★富士山狙い
+| 時刻 | 内容 |
+|---|---|
+| 11:00 | 江ノ島の店で**着付け**（約60分） |
+| 12:00 | 江ノ島（江島神社・サムエルコッキング苑） |
+| 13:30 | **🚢 べんてん丸（¥400）で海上遊覧・撮影** |
+| 14:30 | 江ノ電で鎌倉高校前へ（**公式撮影エリア**） |
+| 15:30 | 江ノ島へ戻る |
+| **16:30** | **🗻 夕景の富士山**（冬は可視率85-95%） |
+| 17:30 | **返却**・着替え → 解散 |
+
+> ⭐ **🅑が本命。** べんてん丸＋夕景の富士山＋着物 という組み合わせは、
+> **東京湾側の競合が構造的に真似できない。**
+
+---
+
+### ⚠️ 運用上の注意（和装特有・見落としやすい）
+
+| 論点 | 内容 |
+|---|---|
+| **着付け時間** | **約60分かかる**。行程を1時間圧迫する前提で組む |
+| **草履で歩けない** | 大仏・長谷寺の坂や石段はきつい。**🅑の江ノ島中心コースの方が和装向き** |
+| **返却時間の制約** | レンタル店の閉店（通常17:30〜18:00）が**行程の終点を決める**。★要確認 |
+| **店舗間返却の可否** | 鎌倉で着て江ノ島で返せるか。**できるなら行程の自由度が跳ね上がる** ★要確認 |
+| **冬の寒さ** | 着物は防寒性が低い。**冬はカイロ・羽織・ショールを必ず用意**。[`E`](./E_冬商品設計_FishingWithMtFuji.md) の防寒具と兼用可 |
+| **雨天** | 草履＋雨は最悪。**雨天は和装オプションを中止**し、通常コース or 返金にする |
+| **サイズ** | 欧米系の体格に合う着物があるか。**★必ず事前確認**（大きいサイズの在庫） |
+| **釣りとの併用** | 🚫 **船釣りと和装は併用しない**。濡れる・汚れる・危険。[`E`](./E_冬商品設計_FishingWithMtFuji.md) の後に着替える形なら可 |
+
+---
+
+### 価格と収益
+
+**販売価格：+¥10,000／人**（着付け・ヘアセット・撮影・返却手配込み）
+
+| 項目（4名の場合） | 金額 |
+|---|---|
+| オプション売上 ¥10,000×4 | **+¥40,000** |
+| 原価（仕入¥3,500×4） | ▲¥14,000 |
+| べんてん丸 ¥400×5（客4＋ガイド） | ▲¥2,000 |
+| 手数料25% | ▲¥10,000 |
+| **粗利（オプション分）** | **+¥14,000／回** |
+
+### 合算後の1回あたり収益
+| | 基本のみ | **和装オプション付き** |
+|---|---|---|
+| 売上 | ¥60,000 | **¥100,000** |
+| 粗利（プラットフォーム経由） | ¥35,000 | **¥49,000** |
+| 粗利（直販） | ¥50,000 | **¥74,000** |
+
+> 💰 **1回あたりの粗利が約1.4倍になる。** しかも**固定費は一切増えない**（全て変動費）。
+
+---
+
+### レンタル店に聞くこと（提携交渉時）
+- [ ] **送客する場合の団体割**はいくらか
+- [ ] **着付けの所要時間**（実測）
+- [ ] **返却の締め時間**
+- [ ] **店舗間返却**は可能か（鎌倉↔江ノ島）
+- [ ] **大きいサイズ**の在庫はあるか（欧米系の体格）
+- [ ] 冬用の**羽織・ショール**の貸出はあるか
+- [ ] 雨天時のキャンセル規定
+- [ ] 英語対応の可否
+
+---
+
 ## 5. 運営上の注意
 
 | 項目 | 内容 |
@@ -186,7 +310,8 @@
 ## 6. 英語出品文ドラフト（Viator / GetYourGuide / Airbnb 向け）
 
 ```
-Kamakura & Enoshima by Local Train — Temples, Slam Dunk & Mt. Fuji Sunset
+Kamakura & Enoshima by Local Train — Temples, Slam Dunk, Kimono
+& Mt. Fuji at Sunset
 
 A full day in Kamakura and Enoshima, guided by a local who lives here,
 travelling the way locals do — on the Enoden, the little seaside train.
@@ -199,8 +324,16 @@ WHAT YOU'LL SEE
   photographed from the city's designated viewing area, safely and
   respectfully
 - Enoshima Island, its shrine and observation tower
+- A short boat ride around Enoshima, with the island from the water
 - In winter: sunset over Sagami Bay with Mt. Fuji on the horizon
   (visible on 85-95% of winter days)
+
+WEAR A KIMONO (optional)
+Start the day at a local kimono shop. You are dressed properly — not a
+costume, the real thing — and you stay in it all day: through the
+shrine, on the train, on the boat, and in front of Mt. Fuji at sunset.
+Hair styling included. Your guide photographs you throughout.
+We have larger sizes. Please tell us when you book.
 
 WHY THE TRAIN
 The Enoden is not just transport — it is the experience. The line runs
@@ -209,15 +342,18 @@ a car.
 
 INCLUDED
 English-speaking local guide, Enoden all-day pass, temple admissions,
-and photos taken by your guide.
+the Enoshima boat ride, and photos taken by your guide.
+Kimono option: rental, dressing and hair styling.
 
 NOT INCLUDED
-Lunch, transport to Kamakura Station.
+Lunch, transport to the meeting point.
 
 RAIN OR SHINE
 If it rains we switch to the indoor route — the Enoshima Iwaya sea
 caves, the aquarium, and the bamboo grove at Hokoku-ji with a bowl of
 matcha. Kamakura in the rain is its own kind of beautiful.
+(The kimono option is not available in rain — sandals and rain do not
+mix. We will refund that part.)
 
 A NOTE ON RESPECT
 Kamakura-Kokomae is a residential neighbourhood. We photograph from
@@ -238,6 +374,8 @@ out. Please join us in this.
 - [ ] **鎌倉市の公式撮影エリア（腰越ラッコ公園）の場所と使い方を確認**
 - [ ] 雨天版コースの下見（江ノ島岩屋・水族館・報国寺）
 - [ ] 英語の参拝作法・歴史解説の準備
+- [ ] **和装レンタル店3軒に送客提携・団体割を相談**（→ 第4.5章の質問リスト）
+- [ ] **べんてん丸に自分で乗る（¥400）** — 富士山の見え方・撮影適性を確認
 - [ ] 傷害保険（[`E`](./E_冬商品設計_FishingWithMtFuji.md) と共通で可）
 
 ### あると強い
