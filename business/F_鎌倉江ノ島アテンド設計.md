@@ -182,18 +182,21 @@
 
 ---
 
-### 💡 構成：¥400の遊覧船が「船の体験」を埋める
+### 💡 構成：和装のまま江ノ電と海沿いを巡る
 
 ```
 和装で着付け  →  江ノ電で移動  →  鎌倉高校前で撮影
-       →  べんてん丸（大人¥400・約7分）に乗船
-       →  海上から江ノ島と富士山をバックに撮影
+       →  江ノ島（江島神社・岩屋・稚児ヶ淵）
        →  夕景の富士山で締める
 ```
 
-> ⭐ **べんてん丸は天気が良ければ富士山を一望できる。**
-> **「和装で船に乗って富士山と撮る」が、原価¥400で実現する。**
-> 自前の遊覧船（初期1,000〜2,000万円）と、**体験の核は大きく変わらない。**
+> ⚠️ **べんてん丸（弁天橋〜稚児ヶ淵のシャトル）は商品に組み込まない。**
+> **当日10:30頃まで運航が確定せず、1・2・12月の平日は欠航**するため、
+> 行程に入れると「乗れなかった」クレームの原因になる（→ [`J`](./J_言語制約と船の取得ルート.md) 第2章）。
+> **乗れたらラッキーのボーナス扱いに留める。**
+>
+> 💡 船からの体験を商品化したい場合は、**貸切ヨットクルーズ**を使う。
+> ただし**運送の手配は旅行業法の論点**になるため要事前相談。
 
 ---
 
@@ -232,13 +235,13 @@
 |---|---|
 | 11:00 | 江ノ島の店で**着付け**（約60分） |
 | 12:00 | 江ノ島（江島神社・サムエルコッキング苑） |
-| 13:30 | **🚢 べんてん丸（¥400）で海上遊覧・撮影** |
+| 13:30 | 江ノ島岩屋・稚児ヶ淵（海沿いの岩場で撮影）<br>※べんてん丸が運航していれば乗ってもよい（★当日確定・冬の平日は欠航） |
 | 14:30 | 江ノ電で鎌倉高校前へ（**公式撮影エリア**） |
 | 15:30 | 江ノ島へ戻る |
 | **16:30** | **🗻 夕景の富士山**（冬は可視率85-95%） |
 | 17:30 | **返却**・着替え → 解散 |
 
-> ⭐ **🅑が本命。** べんてん丸＋夕景の富士山＋着物 という組み合わせは、
+> ⭐ **🅑が本命。** 着物＋江ノ島＋**夕景の富士山**という組み合わせは、
 > **東京湾側の競合が構造的に真似できない。**
 
 ---
@@ -266,7 +269,7 @@
 |---|---|
 | オプション売上 ¥10,000×4 | **+¥40,000** |
 | 原価（仕入¥3,500×4） | ▲¥14,000 |
-| べんてん丸 ¥400×5（客4＋ガイド） | ▲¥2,000 |
+| 予備費（撮影・小物） | ▲¥2,000 |
 | 手数料25% | ▲¥10,000 |
 | **粗利（オプション分）** | **+¥14,000／回** |
 
@@ -324,7 +327,6 @@ WHAT YOU'LL SEE
   photographed from the city's designated viewing area, safely and
   respectfully
 - Enoshima Island, its shrine and observation tower
-- A short boat ride around Enoshima, with the island from the water
 - In winter: sunset over Sagami Bay with Mt. Fuji on the horizon
   (visible on 85-95% of winter days)
 
@@ -341,9 +343,16 @@ along the shore, between houses and the sea. You cannot see this from
 a car.
 
 INCLUDED
-English-speaking local guide, Enoden all-day pass, temple admissions,
-the Enoshima boat ride, and photos taken by your guide.
+Local guide, Enoden all-day pass, temple admissions, and photos
+taken by your guide.
 Kimono option: rental, dressing and hair styling.
+
+ABOUT YOUR GUIDE
+Your guide is a local angler from Chigasaki who has known this coast
+for years. He speaks limited English and uses a translation device.
+What he brings is access, safety and local knowledge — not narration.
+If you want a polished narrated history tour, this is not it. If you
+want a local to take you where you could not go alone, this is it.
 
 NOT INCLUDED
 Lunch, transport to the meeting point.
@@ -375,7 +384,7 @@ out. Please join us in this.
 - [ ] 雨天版コースの下見（江ノ島岩屋・水族館・報国寺）
 - [ ] 英語の参拝作法・歴史解説の準備
 - [ ] **和装レンタル店3軒に送客提携・団体割を相談**（→ 第4.5章の質問リスト）
-- [ ] **べんてん丸に自分で乗る（¥400）** — 富士山の見え方・撮影適性を確認
+- [ ] 江ノ島の夕景ポイントを実地確認（富士山の見え方・撮影適性）
 - [ ] 傷害保険（[`E`](./E_冬商品設計_FishingWithMtFuji.md) と共通で可）
 
 ### あると強い
